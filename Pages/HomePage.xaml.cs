@@ -19,8 +19,6 @@ namespace PixelfedClient.Pages;
 
 public sealed partial class HomePage : Page
 {
-    private const int HashtagSearchMinimumVisiblePosts = 2;
-    private const int HashtagSearchBackgroundPageLimit = 20;
     private readonly PixelfedTimelineService _timelineService = new();
     private readonly PixelfedSearchService _searchService = new();
     private readonly HolosSearchService _holosSearchService = new();
@@ -35,6 +33,8 @@ public sealed partial class HomePage : Page
     private PixelfedFeedKind _activeFeedKind = PixelfedFeedKind.Local;
     private string? _activeFollowedHashtag;
     private FediverseAccountKind? _accountTypeFilter;
+    private int? _savedAccountTypeSelectionForHashtag;
+    private bool _isApplyingHashtagAccountSelection;
     private ScrollViewer? _feedScrollViewer;
     private bool _showGrid = true;
     private int _gridColumns = 4;
@@ -44,7 +44,6 @@ public sealed partial class HomePage : Page
     private double _gridCardHeight = 600;
     private bool _isListeningForPreferences;
     private int _consecutiveEmptyPages;
-    private int _hashtagBackgroundPagesRemaining;
     private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 1;
     private CancellationTokenSource? _suggestionCancellation;
     private int _suggestionRequestVersion;
@@ -407,6 +406,7 @@ public sealed partial class HomePage : Page
         _suggestionCancellation?.Cancel();
         _searchSuggestions.Clear();
         FeedSearchBox.Text = string.Empty;
+        RestoreAccountTypeSelectionAfterHashtag();
         await LoadTimelineAsync();
     }
 
@@ -431,18 +431,10 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        _activeFollowedHashtag = tag;
-        _hashtagBackgroundPagesRemaining = HashtagSearchBackgroundPageLimit;
-        BackToHomeFeedButton.Visibility = Visibility.Visible;
-        FeedDescriptionText.Text = $"All indexed photo posts with #{tag}.";
-        _posts.Clear();
-        _pageCursor = null;
-        _hasMore = true;
-        _consecutiveEmptyPages = 0;
-        _lastShownPostTimeByAuthor.Clear();
-        SetLoadMoreVisibility(Visibility.Collapsed);
-        FeedStatusText.Text = $"Loading posts tagged #{tag} from the cross-instance index…";
-        await LoadNextPageAsync();
+        if (_instanceUri is not null && !string.IsNullOrEmpty(_accessToken))
+        {
+            await LoadGlobalHashtagAsync(_instanceUri, _accessToken, tag);
+        }
     }
 
     private async void AccountTypeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -454,8 +446,21 @@ public sealed partial class HomePage : Page
             _ => null,
         };
 
-        if (!IsLoaded || e.AddedItems.Count == 0)
+        if (_isApplyingHashtagAccountSelection || !IsLoaded || e.AddedItems.Count == 0)
         {
+            return;
+        }
+
+        if (_activeFollowedHashtag is not null
+            && _instanceUri is not null
+            && !string.IsNullOrEmpty(_accessToken))
+        {
+            _savedAccountTypeSelectionForHashtag = AccountTypeSelector.SelectedIndex;
+            await LoadGlobalHashtagAsync(
+                _instanceUri,
+                _accessToken,
+                _activeFollowedHashtag,
+                applyGlobalAccountSelection: false);
             return;
         }
 
@@ -608,14 +613,25 @@ public sealed partial class HomePage : Page
             () => _searchService.GetPhotoPostsForAccountAsync(instanceUri, accessToken, suggestion.Account!.Id));
     }
 
-    private async Task LoadGlobalHashtagAsync(Uri instanceUri, string accessToken, string tag)
+    private async Task LoadGlobalHashtagAsync(
+        Uri instanceUri,
+        string accessToken,
+        string tag,
+        bool applyGlobalAccountSelection = true)
     {
         _instanceUri = instanceUri;
         _accessToken = accessToken;
         _activeFollowedHashtag = tag.Trim().TrimStart('#');
-        _hashtagBackgroundPagesRemaining = HashtagSearchBackgroundPageLimit;
+        if (applyGlobalAccountSelection)
+        {
+            _savedAccountTypeSelectionForHashtag ??= AccountTypeSelector.SelectedIndex;
+            _isApplyingHashtagAccountSelection = true;
+            AccountTypeSelector.SelectedIndex = 0;
+            _accountTypeFilter = null;
+            _isApplyingHashtagAccountSelection = false;
+        }
         BackToHomeFeedButton.Visibility = Visibility.Visible;
-        FeedDescriptionText.Text = $"Indexed photo posts with #{_activeFollowedHashtag} across instances.";
+        FeedDescriptionText.Text = $"Indexed photo posts with #{_activeFollowedHashtag} across instances. Showing all account types.";
         _posts.Clear();
         _pageCursor = null;
         _hasMore = true;
@@ -624,6 +640,25 @@ public sealed partial class HomePage : Page
         SetLoadMoreVisibility(Visibility.Collapsed);
         FeedStatusText.Text = $"Searching indexed posts tagged #{_activeFollowedHashtag}…";
         await LoadNextPageAsync();
+    }
+
+    private void RestoreAccountTypeSelectionAfterHashtag()
+    {
+        if (_savedAccountTypeSelectionForHashtag is not int selection)
+        {
+            return;
+        }
+
+        _isApplyingHashtagAccountSelection = true;
+        AccountTypeSelector.SelectedIndex = selection;
+        _isApplyingHashtagAccountSelection = false;
+        _accountTypeFilter = selection switch
+        {
+            1 => FediverseAccountKind.Pixelfed,
+            2 => FediverseAccountKind.Mastodon,
+            _ => null,
+        };
+        _savedAccountTypeSelectionForHashtag = null;
     }
 
     private async Task LoadSearchUrlAsync(string postUrl)
@@ -853,6 +888,7 @@ public sealed partial class HomePage : Page
 
     private async Task LoadTimelineAsync()
     {
+        RestoreAccountTypeSelectionAfterHashtag();
         BackToHomeFeedButton.Visibility = Visibility.Collapsed;
         _activeFollowedHashtag = null;
         _activeFeedKind = FeedSelector.SelectedIndex switch
@@ -922,7 +958,6 @@ public sealed partial class HomePage : Page
 
         _isLoading = true;
         var previousCursor = _pageCursor;
-        var prefetchNextHashtagPage = false;
         SetLoadMoreEnabled(false);
         FeedStatusText.Text = _posts.Count == 0
             ? $"Loading {FeedLabel(_activeFeedKind)} posts…"
@@ -956,26 +991,12 @@ public sealed partial class HomePage : Page
             }
 
             _consecutiveEmptyPages = visiblePostCount == 0 ? _consecutiveEmptyPages + 1 : 0;
-            if (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
-                && _hashtagBackgroundPagesRemaining > 0
-                && _posts.Count < HashtagSearchMinimumVisiblePosts
-                && _hasMore)
-            {
-                _hashtagBackgroundPagesRemaining--;
-                prefetchNextHashtagPage = true;
-            }
             SetLoadMoreVisibility(_hasMore
                 && (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
                     || _consecutiveEmptyPages >= EmptyPagePromptThreshold)
                 ? Visibility.Visible
                 : Visibility.Collapsed);
             UpdateFeedStatus();
-            if (prefetchNextHashtagPage && _posts.Count < HashtagSearchMinimumVisiblePosts)
-            {
-                FeedStatusText.Text = _posts.Count == 0
-                    ? $"Searching more posts tagged #{_activeFollowedHashtag}…"
-                    : $"Showing {_posts.Count} post · finding more matches for #{_activeFollowedHashtag}…";
-            }
 
             // If several pages contain no visible posts after preferences are
             // applied, let the user choose when to continue scanning.
@@ -996,10 +1017,6 @@ public sealed partial class HomePage : Page
         {
             _isLoading = false;
             SetLoadMoreEnabled(true);
-            if (prefetchNextHashtagPage)
-            {
-                DispatcherQueue.TryEnqueue(() => _ = LoadNextPageAsync());
-            }
         }
     }
 
