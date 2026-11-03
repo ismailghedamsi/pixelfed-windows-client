@@ -42,7 +42,7 @@ public sealed partial class HomePage : Page
     private double _gridCardHeight = 600;
     private bool _isListeningForPreferences;
     private int _consecutiveEmptyPages;
-    private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 12;
+    private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 5;
     private CancellationTokenSource? _suggestionCancellation;
     private int _suggestionRequestVersion;
     private string? _pendingNotificationStatusId;
