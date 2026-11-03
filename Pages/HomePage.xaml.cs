@@ -19,6 +19,8 @@ namespace PixelfedClient.Pages;
 
 public sealed partial class HomePage : Page
 {
+    private const int HashtagSearchMinimumVisiblePosts = 2;
+    private const int HashtagSearchBackgroundPageLimit = 20;
     private readonly PixelfedTimelineService _timelineService = new();
     private readonly PixelfedSearchService _searchService = new();
     private readonly HolosSearchService _holosSearchService = new();
@@ -430,7 +432,7 @@ public sealed partial class HomePage : Page
         }
 
         _activeFollowedHashtag = tag;
-        _hashtagBackgroundPagesRemaining = 4;
+        _hashtagBackgroundPagesRemaining = HashtagSearchBackgroundPageLimit;
         BackToHomeFeedButton.Visibility = Visibility.Visible;
         FeedDescriptionText.Text = $"All indexed photo posts with #{tag}.";
         _posts.Clear();
@@ -611,7 +613,7 @@ public sealed partial class HomePage : Page
         _instanceUri = instanceUri;
         _accessToken = accessToken;
         _activeFollowedHashtag = tag.Trim().TrimStart('#');
-        _hashtagBackgroundPagesRemaining = 4;
+        _hashtagBackgroundPagesRemaining = HashtagSearchBackgroundPageLimit;
         BackToHomeFeedButton.Visibility = Visibility.Visible;
         FeedDescriptionText.Text = $"Indexed photo posts with #{_activeFollowedHashtag} across instances.";
         _posts.Clear();
@@ -956,6 +958,7 @@ public sealed partial class HomePage : Page
             _consecutiveEmptyPages = visiblePostCount == 0 ? _consecutiveEmptyPages + 1 : 0;
             if (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
                 && _hashtagBackgroundPagesRemaining > 0
+                && _posts.Count < HashtagSearchMinimumVisiblePosts
                 && _hasMore)
             {
                 _hashtagBackgroundPagesRemaining--;
@@ -967,6 +970,12 @@ public sealed partial class HomePage : Page
                 ? Visibility.Visible
                 : Visibility.Collapsed);
             UpdateFeedStatus();
+            if (prefetchNextHashtagPage && _posts.Count < HashtagSearchMinimumVisiblePosts)
+            {
+                FeedStatusText.Text = _posts.Count == 0
+                    ? $"Searching more posts tagged #{_activeFollowedHashtag}…"
+                    : $"Showing {_posts.Count} post · finding more matches for #{_activeFollowedHashtag}…";
+            }
 
             // If several pages contain no visible posts after preferences are
             // applied, let the user choose when to continue scanning.
