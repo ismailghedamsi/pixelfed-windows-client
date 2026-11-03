@@ -42,7 +42,7 @@ public sealed partial class HomePage : Page
     private double _gridCardHeight = 600;
     private bool _isListeningForPreferences;
     private int _consecutiveEmptyPages;
-    private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 5;
+    private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 1;
     private CancellationTokenSource? _suggestionCancellation;
     private int _suggestionRequestVersion;
     private string? _pendingNotificationStatusId;
@@ -811,7 +811,9 @@ public sealed partial class HomePage : Page
 
     private void FeedScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        if (_feedScrollViewer is null)
+        if (_feedScrollViewer is null
+            || (_activeFollowedHashtag is not null
+                && _consecutiveEmptyPages >= EmptyPagePromptThreshold))
         {
             return;
         }
@@ -948,14 +950,18 @@ public sealed partial class HomePage : Page
             }
 
             _consecutiveEmptyPages = visiblePostCount == 0 ? _consecutiveEmptyPages + 1 : 0;
-            SetLoadMoreVisibility(_hasMore && _consecutiveEmptyPages >= EmptyPagePromptThreshold
+            SetLoadMoreVisibility(_hasMore
+                && (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
+                    || _consecutiveEmptyPages >= EmptyPagePromptThreshold)
                 ? Visibility.Visible
                 : Visibility.Collapsed);
             UpdateFeedStatus();
 
             // If several pages contain no visible posts after preferences are
             // applied, let the user choose when to continue scanning.
-            if (_hasMore && _consecutiveEmptyPages < EmptyPagePromptThreshold)
+            if (_hasMore
+                && _consecutiveEmptyPages < EmptyPagePromptThreshold
+                && string.IsNullOrWhiteSpace(_activeFollowedHashtag))
             {
                 DispatcherQueue.TryEnqueue(CheckFeedNeedsMore);
             }

@@ -67,7 +67,7 @@ public sealed class HolosSearchService
             return new HolosPhotoTimelinePage([], null, false);
         }
 
-        var query = "limit=100&contentType=image&sensitive=hide";
+        var query = "limit=40&contentType=image&sensitive=hide";
         if (!string.IsNullOrWhiteSpace(cursor))
         {
             query += $"&cursor={Uri.EscapeDataString(cursor)}";
