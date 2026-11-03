@@ -42,6 +42,7 @@ public sealed partial class HomePage : Page
     private double _gridCardHeight = 600;
     private bool _isListeningForPreferences;
     private int _consecutiveEmptyPages;
+    private int _hashtagBackgroundPagesRemaining;
     private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 1;
     private CancellationTokenSource? _suggestionCancellation;
     private int _suggestionRequestVersion;
@@ -429,6 +430,7 @@ public sealed partial class HomePage : Page
         }
 
         _activeFollowedHashtag = tag;
+        _hashtagBackgroundPagesRemaining = 4;
         BackToHomeFeedButton.Visibility = Visibility.Visible;
         FeedDescriptionText.Text = $"All indexed photo posts with #{tag}.";
         _posts.Clear();
@@ -609,6 +611,7 @@ public sealed partial class HomePage : Page
         _instanceUri = instanceUri;
         _accessToken = accessToken;
         _activeFollowedHashtag = tag.Trim().TrimStart('#');
+        _hashtagBackgroundPagesRemaining = 4;
         BackToHomeFeedButton.Visibility = Visibility.Visible;
         FeedDescriptionText.Text = $"Indexed photo posts with #{_activeFollowedHashtag} across instances.";
         _posts.Clear();
@@ -917,6 +920,7 @@ public sealed partial class HomePage : Page
 
         _isLoading = true;
         var previousCursor = _pageCursor;
+        var prefetchNextHashtagPage = false;
         SetLoadMoreEnabled(false);
         FeedStatusText.Text = _posts.Count == 0
             ? $"Loading {FeedLabel(_activeFeedKind)} posts…"
@@ -950,6 +954,13 @@ public sealed partial class HomePage : Page
             }
 
             _consecutiveEmptyPages = visiblePostCount == 0 ? _consecutiveEmptyPages + 1 : 0;
+            if (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
+                && _hashtagBackgroundPagesRemaining > 0
+                && _hasMore)
+            {
+                _hashtagBackgroundPagesRemaining--;
+                prefetchNextHashtagPage = true;
+            }
             SetLoadMoreVisibility(_hasMore
                 && (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
                     || _consecutiveEmptyPages >= EmptyPagePromptThreshold)
@@ -976,6 +987,10 @@ public sealed partial class HomePage : Page
         {
             _isLoading = false;
             SetLoadMoreEnabled(true);
+            if (prefetchNextHashtagPage)
+            {
+                DispatcherQueue.TryEnqueue(() => _ = LoadNextPageAsync());
+            }
         }
     }
 
