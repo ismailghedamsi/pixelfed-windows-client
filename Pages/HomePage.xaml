@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="PixelfedClient.Pages.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:PixelfedClient.Pages"
+    xmlns:views="using:PixelfedClient.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="FeedRootGrid" Padding="28,22" RowSpacing="14" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Padding="18" Background="{ThemeResource ControlFillColorSecondaryBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="18">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                <Border Width="54" Height="54" Background="{ThemeResource PixelfedAccentBrush}" CornerRadius="16" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE722;" FontSize="24" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock FontSize="10" FontWeight="Bold" CharacterSpacing="110" Foreground="{ThemeResource PixelfedAccentBrush}" Text="PIXELFED  ·  PHOTO FIRST" />
+                    <TextBlock Style="{StaticResource PixelfedPageTitleStyle}" Text="Your feed" />
+                    <TextBlock
+                        x:Name="FeedDescriptionText"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Latest posts from your Pixelfed local timeline." />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ComboBox
+                    x:Name="AccountTypeSelector"
+                    Width="165"
+                    SelectionChanged="AccountTypeSelector_SelectionChanged"
+                    SelectedIndex="0">
+                    <ComboBoxItem Content="All accounts" />
+                    <ComboBoxItem Content="Pixelfed accounts" />
+                    <ComboBoxItem Content="Mastodon accounts" />
+                </ComboBox>
+                <ComboBox
+                    x:Name="FeedSelector"
+                    Width="150"
+                    SelectionChanged="FeedSelector_SelectionChanged"
+                    SelectedIndex="0">
+                    <ComboBoxItem Content="Local" />
+                    <ComboBoxItem Content="Home" />
+                    <ComboBoxItem Content="Followed hashtags" />
+                </ComboBox>
+                <Button
+                    x:Name="BackToHomeFeedButton"
+                    Click="BackToHomeFeed_Click"
+                    Content="Back to feed"
+                    Visibility="Collapsed" />
+            </StackPanel>
+            </Grid>
+        </Border>
+        <AutoSuggestBox
+            x:Name="FeedSearchBox"
+            Grid.Row="1"
+            MaxSuggestionListHeight="420"
+            PlaceholderText="Search people or #hashtags"
+            QueryIcon="Find"
+            QuerySubmitted="FeedSearch_QuerySubmitted"
+            SuggestionChosen="FeedSearch_SuggestionChosen"
+            TextChanged="FeedSearch_TextChanged"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <AutoSuggestBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Spacing="4">
+                        <StackPanel Padding="4,8,4,4" Spacing="6" Visibility="{Binding HeaderVisibility}">
+                            <Border
+                                Height="1"
+                                Background="{ThemeResource CardStrokeColorDefaultBrush}"
+                                Visibility="{Binding DividerVisibility}" />
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                        </StackPanel>
+                        <Grid
+                            Padding="4,7"
+                            ColumnDefinitions="Auto,*"
+                            ColumnSpacing="8"
+                            Visibility="{Binding ResultVisibility}">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="{Binding HashtagMarker}"
+                                Visibility="{Binding HashtagMarkerVisibility}" />
+                            <FontIcon
+                                VerticalAlignment="Center"
+                                Glyph="&#xE77B;"
+                                Visibility="{Binding PersonIconVisibility}" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="{Binding PrimaryText}" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding SecondaryText}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </DataTemplate>
+            </AutoSuggestBox.ItemTemplate>
+        </AutoSuggestBox>
+        <Grid
+            x:Name="FollowedHashtagsPanel"
+            Grid.Row="2"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="12"
+            Visibility="Collapsed">
+            <TextBlock
+                VerticalAlignment="Center"
+                FontWeight="SemiBold"
+                Text="Followed hashtags" />
+            <ScrollViewer
+                Grid.Column="1"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="FollowedHashtagsItemsControl">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button
+                                Margin="0,0,8,0"
+                                Padding="12,6"
+                                Click="FollowedHashtag_Click"
+                                Content="{Binding Label}"
+                                Tag="{Binding Name}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <ToggleButton
+                x:Name="GridModeButton"
+                Click="GridMode_Click"
+                Content="Grid"
+                IsChecked="True" />
+            <StackPanel x:Name="GridColumnControls" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Button Click="DecreaseGridColumns_Click" Content="−" FontSize="18" Padding="8,2" ToolTipService.ToolTip="Fewer grid columns" />
+                    <TextBlock x:Name="GridColumnCountText" MinWidth="70" VerticalAlignment="Center" Text="4 columns" TextAlignment="Center" />
+                    <Button Click="IncreaseGridColumns_Click" Content="+" FontSize="18" Padding="8,2" ToolTipService.ToolTip="More grid columns" />
+                </StackPanel>
+                <ToggleButton
+                    x:Name="ListModeButton"
+                    Click="ListMode_Click"
+                    Content="List" />
+                <Button Click="SwipeView_Click" Content="▶ Swipe" ToolTipService.ToolTip="Open one-photo-at-a-time swipe view" />
+                <Button Click="RefreshFeed_Click" Content="Refresh" />
+        </StackPanel>
+        <TextBlock
+            x:Name="FeedStatusText"
+            Grid.Row="4"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="Ready"
+            TextWrapping="Wrap" />
+        <GridView
+            x:Name="FeedGridView"
+            Grid.Row="5"
+            ContainerContentChanging="FeedGridView_ContainerContentChanging"
+            IsItemClickEnabled="False"
+            SelectionMode="None">
+            <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </GridView.ItemsPanel>
+            <GridView.Footer>
+                <Button
+                    x:Name="LoadMoreButton"
+                    Click="LoadMore_Click"
+                    Content="Load more posts"
+                    HorizontalAlignment="Center"
+                    Visibility="Collapsed" />
+            </GridView.Footer>
+            <GridView.ItemTemplate>
+                <DataTemplate>
+                    <Border
+                        Height="{Binding GridCardHeight}"
+                        Margin="4"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                        <StackPanel Spacing="8">
+                            <StackPanel Height="60" Padding="14,12,14,0" Spacing="3">
+                                <TextBlock
+                                    IsTextSelectionEnabled="True"
+                                    FontWeight="SemiBold"
+                                    MaxLines="1"
+                                    Text="{Binding DisplayName}" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    IsTextSelectionEnabled="True"
+                                    MaxLines="1"
+                                    Text="{Binding Username}" />
+                            </StackPanel>
+                            <views:PostMediaCarousel
+                                ResponsiveFrame="True"
+                                Visibility="{Binding MediaVisibility}" />
+                            <TextBlock
+                                Height="100"
+                                Margin="12,0,12,0"
+                                IsTextSelectionEnabled="True"
+                                MaxLines="5"
+                                Text="{Binding Caption}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="Wrap" />
+                            <Grid Height="32" Margin="8,0">
+                                <HyperlinkButton
+                                    Padding="0"
+                                    HorizontalAlignment="Left"
+                                    Click="PostSeeMore_Click"
+                                    Content="See more"
+                                    Tag="{Binding}"
+                                    Visibility="{Binding CaptionSeeMoreVisibility}" />
+                            </Grid>
+                            <views:PostActionsBar Height="112" Margin="8,0,8,0" Post="{Binding}" />
+                            <TextBlock
+                                Height="24"
+                                Margin="12,0,12,12"
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding CreatedAtLabel}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+        <ListView
+            x:Name="FeedListView"
+            Grid.Row="5"
+            IsItemClickEnabled="False"
+            SelectionMode="None"
+            Visibility="Collapsed">
+            <ListView.Footer>
+                <Button
+                    x:Name="LoadMoreListButton"
+                    Click="LoadMore_Click"
+                    Content="Load more posts"
+                    HorizontalAlignment="Center"
+                    Visibility="Collapsed" />
+            </ListView.Footer>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Border
+                        Margin="0,0,0,12"
+                        Padding="18"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock
+                                    IsTextSelectionEnabled="True"
+                                    FontWeight="SemiBold"
+                                    Text="{Binding DisplayName}" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    IsTextSelectionEnabled="True"
+                                    Text="{Binding Username}" />
+                            </StackPanel>
+                            <views:PostMediaCarousel
+                                HorizontalAlignment="Stretch"
+                                Visibility="{Binding MediaVisibility}" />
+                            <TextBlock
+                                IsTextSelectionEnabled="True"
+                                Text="{Binding Caption}"
+                                TextWrapping="Wrap" />
+                            <views:PostActionsBar Post="{Binding}" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding CreatedAtLabel}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+        <Grid
+            x:Name="SwipeViewerPanel"
+            Grid.RowSpan="6"
+            Padding="22"
+            Background="#F00C1019"
+            KeyDown="SwipeViewer_KeyDown"
+            Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <Button Click="CloseSwipeViewer_Click" Content="✕ Close" />
+                <TextBlock
+                    x:Name="SwipeViewerPositionText"
+                    Grid.Column="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="White"
+                    FontWeight="SemiBold" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Click="PreviousSwipePost_Click" Content="↑ Previous" />
+                    <Button Click="NextSwipePost_Click" Content="↓ Next" />
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <Button
+                    VerticalAlignment="Center"
+                    Click="PreviousSwipePost_Click"
+                    Content="↑"
+                    FontSize="24"
+                    ToolTipService.ToolTip="Previous post (Up arrow)" />
+                <Border
+                    Grid.Column="1"
+                    Margin="0,10"
+                    Background="#FF080A10"
+                    CornerRadius="18">
+                    <Image
+                        x:Name="SwipeViewerImage"
+                        DoubleTapped="SwipeViewerImage_DoubleTapped"
+                        PointerPressed="SwipeViewerImage_PointerPressed"
+                        PointerReleased="SwipeViewerImage_PointerReleased"
+                        Stretch="Uniform" />
+                </Border>
+                <Button
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Click="NextSwipePost_Click"
+                    Content="↓"
+                    FontSize="24"
+                    ToolTipService.ToolTip="Next post (Down arrow)" />
+            </Grid>
+            <Border
+                Grid.Row="2"
+                Padding="16"
+                Background="#E61A1D27"
+                CornerRadius="14">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
+                    <StackPanel Spacing="5">
+                        <TextBlock x:Name="SwipeViewerAuthorText" Foreground="White" FontWeight="Bold" />
+                        <ScrollViewer MaxHeight="110" VerticalScrollBarVisibility="Auto">
+                            <TextBlock
+                                x:Name="SwipeViewerCaptionText"
+                                Foreground="White"
+                                IsTextSelectionEnabled="True"
+                                TextWrapping="Wrap" />
+                        </ScrollViewer>
+                    </StackPanel>
+                    <views:PostActionsBar
+                        x:Name="SwipeViewerActions"
+                        Grid.Column="1"
+                        VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>

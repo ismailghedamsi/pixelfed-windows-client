@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="PixelfedClient.Pages.BookmarksPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:views="using:PixelfedClient.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    <Grid Padding="28,22" RowSpacing="14" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="4">
+                <TextBlock FontSize="10" FontWeight="Bold" CharacterSpacing="110" Foreground="{ThemeResource PixelfedAccentBrush}" Text="YOUR LIBRARY" />
+                <TextBlock Style="{StaticResource PixelfedPageTitleStyle}" Text="Bookmarks" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Posts you have saved on your Pixelfed instance." />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ToggleButton x:Name="GridModeButton" Click="GridMode_Click" Content="Grid" IsChecked="True" />
+                <ToggleButton x:Name="ListModeButton" Click="ListMode_Click" Content="List" />
+                <Button Click="Refresh_Click" Content="Refresh" />
+            </StackPanel>
+        </Grid>
+        <TextBlock x:Name="StatusText" Grid.Row="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Loading bookmarks…" TextWrapping="Wrap" />
+        <ScrollViewer x:Name="PostsScrollViewer" Grid.Row="2" ViewChanged="PostsScrollViewer_ViewChanged" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <GridView x:Name="PostsGridView" IsItemClickEnabled="False" SelectionMode="None">
+                    <GridView.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid ItemWidth="260" MaximumRowsOrColumns="5" /></ItemsPanelTemplate></GridView.ItemsPanel>
+                    <GridView.Footer><Button x:Name="LoadMoreGridButton" Click="LoadMore_Click" Content="Load more bookmarks" HorizontalAlignment="Center" Visibility="Collapsed" /></GridView.Footer>
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="252" Margin="5" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
+                                <StackPanel Spacing="8">
+                                    <StackPanel Padding="12,12,12,0" Spacing="2">
+                                        <TextBlock FontWeight="SemiBold" IsTextSelectionEnabled="True" Text="{Binding DisplayName}" />
+                                        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsTextSelectionEnabled="True" Text="{Binding Username}" />
+                                    </StackPanel>
+                                    <views:PostMediaCarousel Height="210" Visibility="{Binding MediaVisibility}" />
+                                    <TextBlock Margin="12,0" IsTextSelectionEnabled="True" MaxLines="5" Text="{Binding Caption}" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                                    <views:PostActionsBar Margin="8,0,8,0" Post="{Binding}" />
+                                    <TextBlock Margin="12,0,12,12" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding CreatedAtLabel}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+                <ListView x:Name="PostsListView" IsItemClickEnabled="False" SelectionMode="None" Visibility="Collapsed">
+                    <ListView.Footer><Button x:Name="LoadMoreListButton" Click="LoadMore_Click" Content="Load more bookmarks" HorizontalAlignment="Center" Visibility="Collapsed" /></ListView.Footer>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,14" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
+                                <StackPanel MaxWidth="900" Spacing="10">
+                                    <StackPanel Spacing="2"><TextBlock FontWeight="SemiBold" IsTextSelectionEnabled="True" Text="{Binding DisplayName}" /><TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsTextSelectionEnabled="True" Text="{Binding Username}" /></StackPanel>
+                                    <views:PostMediaCarousel MaxHeight="560" HorizontalAlignment="Left" Visibility="{Binding MediaVisibility}" />
+                                    <TextBlock IsTextSelectionEnabled="True" Text="{Binding Caption}" TextWrapping="Wrap" />
+                                    <views:PostActionsBar Post="{Binding}" />
+                                    <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding CreatedAtLabel}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>

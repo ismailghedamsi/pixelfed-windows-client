@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="PixelfedClient.Views.PostActionsBar"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    <Grid
+        ColumnSpacing="6"
+        RowSpacing="6"
+        x:Name="ActionButtonsPanel">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Button
+            x:Name="LikeButton"
+            Click="Like_Click"
+            Content="{Binding Post.LikeButtonText, ElementName=Root}"
+            ToolTipService.ToolTip="Like or unlike this post" />
+        <Button
+            x:Name="ShareButton"
+            Grid.Column="1"
+            Click="Share_Click"
+            Content="{Binding Post.ShareButtonText, ElementName=Root}"
+            ToolTipService.ToolTip="Share or undo sharing this post" />
+        <Button
+            x:Name="ReplyButton"
+            Grid.Row="1"
+            Click="Reply_Click"
+            Content="{Binding Post.ReplyButtonText, ElementName=Root}"
+            IsEnabled="{Binding Post.CanReply, ElementName=Root}"
+            ToolTipService.ToolTip="Comment on this post" />
+        <Button
+            x:Name="BookmarkButton"
+            Grid.Row="1"
+            Grid.Column="1"
+            Click="Bookmark_Click"
+            Content="{Binding Post.BookmarkButtonText, ElementName=Root}"
+            ToolTipService.ToolTip="Save or remove from bookmarks" />
+        <Button
+            Grid.Row="2"
+            Click="OpenWeb_Click"
+            Content="Open web"
+            IsEnabled="{Binding Post.HasPostUrl, ElementName=Root}"
+            ToolTipService.ToolTip="Open this post on Pixelfed in your browser" />
+    </Grid>
+</UserControl>

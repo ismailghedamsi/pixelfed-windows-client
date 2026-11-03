@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "PixelfedClient (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "PixelfedClient (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

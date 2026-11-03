@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="PixelfedClient.Pages.CollectionsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:views="using:PixelfedClient.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Padding="28,22" RowSpacing="14" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="4">
+                <TextBlock FontSize="10" FontWeight="Bold" CharacterSpacing="110" Foreground="{ThemeResource PixelfedAccentBrush}" Text="YOUR LIBRARY" />
+                <TextBlock Style="{StaticResource PixelfedPageTitleStyle}" Text="Collections" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="Your saved Pixelfed collections." />
+            </StackPanel>
+            <Button
+                Grid.Column="1"
+                Click="RefreshCollections_Click"
+                Content="Refresh"
+                VerticalAlignment="Center" />
+        </Grid>
+
+        <TextBlock
+            x:Name="CollectionsStatusText"
+            Grid.Row="1"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="Loading your collections…"
+            TextWrapping="Wrap" />
+
+        <TextBox
+            x:Name="CollectionsSearchBox"
+            Grid.Row="2"
+            PlaceholderText="Search collections by name or description"
+            TextChanged="CollectionsSearch_TextChanged"
+            MaxWidth="600"
+            HorizontalAlignment="Stretch" />
+
+        <Grid Grid.Row="3">
+            <GridView
+                x:Name="CollectionsGridView"
+                IsItemClickEnabled="True"
+                ItemClick="CollectionsGridView_ItemClick"
+                SelectionMode="None">
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemTemplate>
+                    <DataTemplate>
+                        <Border
+                            Width="236"
+                            Margin="4"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12">
+                            <StackPanel Spacing="8">
+                                <Grid Height="172">
+                                    <Image
+                                        Source="{Binding ThumbnailSource}"
+                                        Stretch="UniformToFill"
+                                        Visibility="{Binding ThumbnailVisibility}" />
+                                    <Border
+                                        Padding="12"
+                                        Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                        Visibility="{Binding PlaceholderVisibility}">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="24"
+                                            Text="▦" />
+                                    </Border>
+                                </Grid>
+                                <StackPanel Padding="12,0,12,12" Spacing="4">
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        MaxLines="2"
+                                        Text="{Binding Title}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        MaxLines="2"
+                                        Text="{Binding Description}"
+                                        TextTrimming="CharacterEllipsis"
+                                        TextWrapping="Wrap" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{Binding DetailsLabel}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
+
+            <Grid
+                x:Name="CollectionDetailPanel"
+                Visibility="Collapsed"
+                RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Button
+                    HorizontalAlignment="Left"
+                    Click="BackToCollections_Click"
+                    Content="← Back to collections" />
+                <StackPanel Grid.Row="1" Spacing="4">
+                    <TextBlock
+                        x:Name="SelectedCollectionTitleText"
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Text="" />
+                    <TextBlock
+                        x:Name="SelectedCollectionDescriptionText"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text=""
+                        TextWrapping="Wrap" />
+                </StackPanel>
+                <Grid Grid.Row="2">
+                    <TextBlock
+                        x:Name="CollectionPostsStatusText"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Loading collection posts…"
+                        TextWrapping="Wrap" />
+                    <GridView
+                        x:Name="CollectionPostsGridView"
+                        IsItemClickEnabled="True"
+                        ItemClick="CollectionPostsGridView_ItemClick"
+                        SelectionMode="None"
+                        Visibility="Collapsed">
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Border
+                                    Width="204"
+                                    Height="204"
+                                    Margin="4"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10">
+                                    <Grid>
+                                        <views:PostMediaCarousel
+                                            Width="204"
+                                            Height="204"
+                                            Visibility="{Binding MediaVisibility}" />
+                                        <Border
+                                            Padding="12"
+                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                            Visibility="{Binding MediaPlaceholderVisibility}">
+                                            <TextBlock
+                                                Text="{Binding Caption}"
+                                                TextWrapping="Wrap" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+                </Grid>
+            </Grid>
+
+            <ScrollViewer
+                x:Name="CollectionPostDetailPanel"
+                Visibility="Collapsed"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="820" Spacing="12">
+                    <Button
+                        HorizontalAlignment="Left"
+                        Click="BackToCollectionPosts_Click"
+                        Content="← Back to collection" />
+                    <Border
+                        Padding="20"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                        <StackPanel Spacing="12">
+                            <views:PostMediaCarousel
+                                MaxHeight="640"
+                                HorizontalAlignment="Center"
+                                Visibility="{Binding MediaVisibility}" />
+                            <views:PostActionsBar Post="{Binding}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="2">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{Binding Username}" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding Caption}" TextWrapping="Wrap" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding CreatedAtLabel}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Page>
