@@ -15,6 +15,44 @@ public sealed class PixelfedTimelineService
     };
 
     private const int PageSize = 20;
+    private const int AccountHistoryPageSize = 40;
+
+    public async Task<PixelfedTimelinePage> GetAccountPhotoHistoryPageAsync(
+        Uri instanceBaseUri,
+        string accessToken,
+        string accountId,
+        string? maxId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={AccountHistoryPageSize}&only_media=true&_pe=1";
+        if (!string.IsNullOrWhiteSpace(maxId))
+        {
+            query += $"&max_id={Uri.EscapeDataString(maxId)}";
+        }
+
+        using var request = CreateGetRequest(
+            new Uri(instanceBaseUri, $"/api/v1/accounts/{Uri.EscapeDataString(accountId)}/statuses?{query}"),
+            accessToken);
+        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "load older posts from followed accounts");
+        using var json = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        if (json.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("Pixelfed returned an unexpected account history response.");
+        }
+
+        var statuses = json.RootElement.EnumerateArray().ToArray();
+        var posts = statuses
+            .Select(status => ParsePost(status, instanceBaseUri.Host))
+            .Where(post => post is { HasImage: true })
+            .Select(post => post!)
+            .ToArray();
+        var nextMaxId = GetNextMaxId(response.Headers, instanceBaseUri)
+            ?? (statuses.Length >= AccountHistoryPageSize ? GetString(statuses[^1], "id") : null);
+        return new PixelfedTimelinePage(posts, nextMaxId, !string.IsNullOrWhiteSpace(nextMaxId));
+    }
 
     public async Task<PixelfedPost?> GetStatusAsync(
         Uri instanceBaseUri,
@@ -413,6 +451,7 @@ public sealed class PixelfedTimelineService
             GetBoolean(status, "comments_disabled"))
         {
             CreatedAtUtc = hasTimestamp ? timestamp : null,
+            AccountId = GetString(account, "id"),
             AccountKind = FediverseAccountClassifier.Classify(
                 GetString(account, "acct"),
                 GetString(account, "url"),
@@ -565,6 +604,7 @@ public sealed record PixelfedPost(
     bool? CommentsDisabled)
 {
     public DateTimeOffset? CreatedAtUtc { get; init; }
+    public string? AccountId { get; init; }
     public FediverseAccountKind AccountKind { get; init; }
     public bool IsExternalSearchResult { get; init; }
     public bool IsReblog { get; init; }

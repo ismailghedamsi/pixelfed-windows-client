@@ -29,6 +29,10 @@ public sealed partial class HomePage : Page
     private readonly ObservableCollection<FeedSearchSuggestion> _searchSuggestions = new();
     private readonly ObservableCollection<FollowedHashtagChip> _followedHashtagChips = new();
     private readonly Dictionary<string, DateTimeOffset?> _lastShownPostTimeByAuthor = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HomeAuthorHistoryState> _homeAuthorHistory = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _recentHomeAuthors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _knownPostIds = new(StringComparer.Ordinal);
+    private readonly Queue<HomeAuthorHistoryState> _homeHistoryQueue = new();
     private Uri? _instanceUri;
     private string? _accessToken;
     private string? _pageCursor;
@@ -44,6 +48,8 @@ public sealed partial class HomePage : Page
     private ItemsWrapGrid? _feedItemsWrapGrid;
     private bool _hasMore = true;
     private bool _isLoading;
+    private bool _homeTimelineExhausted;
+    private DateTimeOffset? _oldestHomeTimelinePostTime;
     private double _gridCardHeight = 600;
     private double _compactGridCardHeight = 440;
     private bool _isListeningForPreferences;
@@ -757,9 +763,15 @@ public sealed partial class HomePage : Page
         BackToHomeFeedButton.Visibility = Visibility.Visible;
         FeedDescriptionText.Text = $"Indexed photo posts with #{_activeFollowedHashtag} across instances. Showing all account types.";
         _posts.Clear();
+        _knownPostIds.Clear();
         _pageCursor = null;
         _hasMore = true;
         _lastShownPostTimeByAuthor.Clear();
+        _homeAuthorHistory.Clear();
+        _recentHomeAuthors.Clear();
+        _homeHistoryQueue.Clear();
+        _homeTimelineExhausted = false;
+        _oldestHomeTimelinePostTime = null;
         FeedStatusText.Text = $"Searching indexed posts tagged #{_activeFollowedHashtag}…";
         await LoadNextPageAsync();
     }
@@ -825,6 +837,12 @@ public sealed partial class HomePage : Page
         _hasMore = false;
         _lastShownPostTimeByAuthor.Clear();
         _posts.Clear();
+        _knownPostIds.Clear();
+        _homeAuthorHistory.Clear();
+        _recentHomeAuthors.Clear();
+        _homeHistoryQueue.Clear();
+        _homeTimelineExhausted = false;
+        _oldestHomeTimelinePostTime = null;
         FeedStatusText.Text = $"Loading results for {label}…";
         try
         {
@@ -956,6 +974,32 @@ public sealed partial class HomePage : Page
         viewModel.SetGridCardHeight(_gridCardHeight);
         viewModel.SetCompactGridCardHeight(_compactGridCardHeight);
         _posts.Add(viewModel);
+    }
+
+    private void InsertHomeHistoryPost(PixelfedPost post)
+    {
+        if (!_knownPostIds.Add(post.Id))
+        {
+            return;
+        }
+
+        var viewModel = new FeedPostViewModel(post);
+        viewModel.SetGridCardHeight(_gridCardHeight);
+        viewModel.SetCompactGridCardHeight(_compactGridCardHeight);
+        if (post.CreatedAtUtc is not { } createdAt)
+        {
+            _posts.Add(viewModel);
+            return;
+        }
+
+        var index = 0;
+        while (index < _posts.Count
+            && (_posts[index].CreatedAtUtc is not { } existingTime || existingTime >= createdAt))
+        {
+            index++;
+        }
+
+        _posts.Insert(index, viewModel);
     }
 
     private static ItemsWrapGrid? FindItemsWrapGrid(DependencyObject parent)
@@ -1102,6 +1146,12 @@ public sealed partial class HomePage : Page
         _pageCursor = null;
         _hasMore = true;
         _lastShownPostTimeByAuthor.Clear();
+        _homeAuthorHistory.Clear();
+        _recentHomeAuthors.Clear();
+        _knownPostIds.Clear();
+        _homeHistoryQueue.Clear();
+        _homeTimelineExhausted = false;
+        _oldestHomeTimelinePostTime = null;
         FeedStatusText.Text = $"Loading your {FeedLabel(_activeFeedKind)} feed…";
         await LoadNextPageAsync();
     }
@@ -1121,7 +1171,16 @@ public sealed partial class HomePage : Page
         try
         {
             PixelfedTimelinePage page;
-            if (!string.IsNullOrWhiteSpace(_activeFollowedHashtag))
+            var loadingHomeHistory = _activeFeedKind == PixelfedFeedKind.Home
+                && _homeTimelineExhausted
+                && ClientPreferences.LimitFrequentPostersToOnePostPer24Hours;
+            if (loadingHomeHistory)
+            {
+                page = await LoadNextHomeAuthorHistoryPageAsync();
+                _pageCursor = null;
+                _hasMore = HasMoreHomeAuthorHistory();
+            }
+            else if (!string.IsNullOrWhiteSpace(_activeFollowedHashtag))
             {
                 var globalPage = await _holosSearchService.GetPhotoPostsForTagPageAsync(
                     _activeFollowedHashtag,
@@ -1136,13 +1195,36 @@ public sealed partial class HomePage : Page
                     _activeFeedKind,
                     _pageCursor);
             }
-            _pageCursor = page.NextMaxId;
-            _hasMore = page.HasMore && !string.IsNullOrEmpty(_pageCursor) && _pageCursor != previousCursor;
+
+            if (!loadingHomeHistory)
+            {
+                _pageCursor = page.NextMaxId;
+                _hasMore = page.HasMore && !string.IsNullOrEmpty(_pageCursor) && _pageCursor != previousCursor;
+
+                if (_activeFeedKind == PixelfedFeedKind.Home)
+                {
+                    TrackHomeTimelinePosts(page.Posts);
+                    if (!_hasMore)
+                    {
+                        _homeTimelineExhausted = true;
+                        InitializeHomeHistoryQueue();
+                        _hasMore = ClientPreferences.LimitFrequentPostersToOnePostPer24Hours
+                            && HasMoreHomeAuthorHistory();
+                    }
+                }
+            }
 
             var previousPostCount = _posts.Count;
             foreach (var post in page.Posts.Where(ShouldShowPost))
             {
-                AddFeedPost(post);
+                if (loadingHomeHistory)
+                {
+                    InsertHomeHistoryPost(post);
+                }
+                else
+                {
+                    AddFeedPost(post);
+                }
             }
 
             UpdateFeedStatus();
@@ -1171,6 +1253,130 @@ public sealed partial class HomePage : Page
             _isLoading = false;
         }
     }
+
+    private void TrackHomeTimelinePosts(IReadOnlyList<PixelfedPost> posts)
+    {
+        var recentCutoff = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(24));
+        foreach (var post in posts)
+        {
+            if (!string.IsNullOrWhiteSpace(post.Id))
+            {
+                _knownPostIds.Add(post.Id);
+            }
+
+            if (MatchesAccountTypeFilter(post)
+                && post.CreatedAtUtc is { } createdAt
+                && (_oldestHomeTimelinePostTime is null || createdAt < _oldestHomeTimelinePostTime))
+            {
+                _oldestHomeTimelinePostTime = createdAt;
+            }
+
+            if (!MatchesAccountTypeFilter(post)
+                || (!ClientPreferences.AllowReblog && post.IsReblog)
+                || string.IsNullOrWhiteSpace(post.AccountId)
+                || string.IsNullOrWhiteSpace(post.Id))
+            {
+                continue;
+            }
+
+            var authorKey = string.IsNullOrWhiteSpace(post.AccountKey) ? post.Username : post.AccountKey;
+            if (!_homeAuthorHistory.TryGetValue(authorKey, out var history))
+            {
+                history = new HomeAuthorHistoryState(post.AccountId, post.Id, post.CreatedAtUtc);
+                _homeAuthorHistory.Add(authorKey, history);
+            }
+            else if (post.CreatedAtUtc is { } olderCreatedAt
+                && (history.OldestSeenAt is null || olderCreatedAt < history.OldestSeenAt))
+            {
+                history.OldestSeenAt = olderCreatedAt;
+                history.BeforeId = post.Id;
+            }
+
+            if (post.CreatedAtUtc is { } recentCreatedAt
+                && recentCreatedAt >= recentCutoff
+                && !_recentHomeAuthors.Add(authorKey))
+            {
+                history.HasRecentDuplicate = true;
+            }
+        }
+    }
+
+    private async Task<PixelfedTimelinePage> LoadNextHomeAuthorHistoryPageAsync()
+    {
+        if (_instanceUri is null || string.IsNullOrEmpty(_accessToken) || _oldestHomeTimelinePostTime is null)
+        {
+            return new PixelfedTimelinePage([], null, false);
+        }
+
+        var authors = new List<HomeAuthorHistoryState>(4);
+        while (authors.Count < 4 && _homeHistoryQueue.Count > 0)
+        {
+            authors.Add(_homeHistoryQueue.Dequeue());
+        }
+        if (authors.Count == 0)
+        {
+            return new PixelfedTimelinePage([], null, false);
+        }
+
+        IReadOnlyList<PixelfedPost>[] pages;
+        try
+        {
+            pages = await Task.WhenAll(authors.Select(async author =>
+            {
+                var page = await _timelineService.GetAccountPhotoHistoryPageAsync(
+                    _instanceUri,
+                    _accessToken,
+                    author.AccountId,
+                    author.BeforeId);
+                if (page.HasMore
+                    && !string.IsNullOrWhiteSpace(page.NextMaxId)
+                    && page.NextMaxId != author.BeforeId)
+                {
+                    author.BeforeId = page.NextMaxId;
+                }
+                else
+                {
+                    author.HasMore = false;
+                }
+
+                return page.Posts;
+            }));
+        }
+        catch
+        {
+            foreach (var author in authors.Where(author => author.HasMore))
+            {
+                _homeHistoryQueue.Enqueue(author);
+            }
+
+            throw;
+        }
+
+        foreach (var author in authors.Where(author => author.HasMore))
+        {
+            _homeHistoryQueue.Enqueue(author);
+        }
+
+        var posts = pages
+            .SelectMany(page => page)
+            .Where(MatchesAccountTypeFilter)
+            .GroupBy(post => post.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderByDescending(post => post.CreatedAtUtc)
+            .ToArray();
+        return new PixelfedTimelinePage(posts, null, HasMoreHomeAuthorHistory());
+    }
+
+    private void InitializeHomeHistoryQueue()
+    {
+        _homeHistoryQueue.Clear();
+        foreach (var author in _homeAuthorHistory.Values.Where(author => author.HasRecentDuplicate && author.HasMore))
+        {
+            _homeHistoryQueue.Enqueue(author);
+        }
+    }
+
+    private bool HasMoreHomeAuthorHistory() => _homeHistoryQueue.Count > 0;
 
     private void CheckFeedNeedsMore()
     {
@@ -1203,7 +1409,9 @@ public sealed partial class HomePage : Page
         }
         else
         {
-            FeedStatusText.Text = _posts.Count == 0
+            FeedStatusText.Text = _homeTimelineExhausted && _activeFeedKind == PixelfedFeedKind.Home
+                ? $"Showing {_posts.Count} {countLabel} · scroll down for older posts from frequent accounts."
+                : _posts.Count == 0
                 ? "Looking for posts…"
                 : $"Showing {_posts.Count} {countLabel} · scroll down for more.";
         }
@@ -1249,6 +1457,15 @@ public sealed partial class HomePage : Page
         }
 
         return false;
+    }
+
+    private sealed class HomeAuthorHistoryState(string accountId, string beforeId, DateTimeOffset? oldestSeenAt)
+    {
+        public string AccountId { get; } = accountId;
+        public string BeforeId { get; set; } = beforeId;
+        public DateTimeOffset? OldestSeenAt { get; set; } = oldestSeenAt;
+        public bool HasRecentDuplicate { get; set; }
+        public bool HasMore { get; set; } = true;
     }
 }
 
@@ -1329,6 +1546,7 @@ public sealed class FeedPostViewModel : INotifyPropertyChanged
     public FeedPostViewModel(PixelfedPost post)
     {
         PostId = post.Id;
+        CreatedAtUtc = post.CreatedAtUtc;
         _fallbackDownloadUrl = post.DownloadImageUrl ?? post.ImageUrl;
         PostUrl = post.PostUrl;
         DisplayName = post.DisplayName;
@@ -1369,6 +1587,7 @@ public sealed class FeedPostViewModel : INotifyPropertyChanged
     public string DisplayName { get; }
     public string Username { get; }
     public string PostId { get; }
+    public DateTimeOffset? CreatedAtUtc { get; }
     public string? ImageDownloadUrl => MediaItems.Count == 0
         ? _fallbackDownloadUrl
         : MediaItems[Math.Clamp(CurrentImageIndex, 0, MediaItems.Count - 1)].DownloadUrl;
