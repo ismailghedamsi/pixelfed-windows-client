@@ -7,6 +7,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
+    <Grid>
     <Grid
         ColumnSpacing="6"
         RowSpacing="6"
@@ -51,5 +52,36 @@
             Content="Open web"
             IsEnabled="{Binding Post.HasPostUrl, ElementName=Root}"
             ToolTipService.ToolTip="Open this post on Pixelfed in your browser" />
+    </Grid>
+    <Grid
+        x:Name="CompactActionsPanel"
+        ColumnDefinitions="*,*,*"
+        ColumnSpacing="2"
+        Visibility="Collapsed">
+        <Button
+            x:Name="CompactLikeButton"
+            Padding="4,3"
+            Click="Like_Click"
+            Content="{Binding Post.CompactLikeButtonText, ElementName=Root}"
+            FontSize="12"
+            ToolTipService.ToolTip="Like or unlike this post" />
+        <Button
+            x:Name="CompactShareButton"
+            Grid.Column="1"
+            Padding="4,3"
+            Click="Share_Click"
+            Content="{Binding Post.CompactShareButtonText, ElementName=Root}"
+            FontSize="12"
+            ToolTipService.ToolTip="Reblog this post" />
+        <Button
+            x:Name="CompactReplyButton"
+            Grid.Column="2"
+            Padding="4,3"
+            Click="Reply_Click"
+            Content="{Binding Post.CompactReplyButtonText, ElementName=Root}"
+            IsEnabled="{Binding Post.CanReply, ElementName=Root}"
+            FontSize="12"
+            ToolTipService.ToolTip="Comment on this post" />
+    </Grid>
     </Grid>
 </UserControl>

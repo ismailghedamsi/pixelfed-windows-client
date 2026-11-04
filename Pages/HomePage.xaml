@@ -153,6 +153,11 @@
                     x:Name="ListModeButton"
                     Click="ListMode_Click"
                     Content="List" />
+                <ToggleButton
+                    x:Name="CompactGridModeButton"
+                    Click="CompactGridMode_Click"
+                    Content="Compact"
+                    ToolTipService.ToolTip="Show photos with a compact action row" />
                 <Button Click="SwipeView_Click" Content="▶ Swipe" ToolTipService.ToolTip="Open one-photo-at-a-time swipe view" />
                 <Button Click="RefreshFeed_Click" Content="Refresh" />
         </StackPanel>
@@ -233,6 +238,48 @@
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 Text="{Binding CreatedAtLabel}" />
                         </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+        <GridView
+            x:Name="CompactFeedGridView"
+            Grid.Row="5"
+            ContainerContentChanging="FeedGridView_ContainerContentChanging"
+            IsItemClickEnabled="True"
+            ItemClick="CompactFeedGridView_ItemClick"
+            SelectionMode="None"
+            Visibility="Collapsed">
+            <GridView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </GridView.ItemsPanel>
+            <GridView.Footer>
+                <Button
+                    x:Name="LoadMoreCompactButton"
+                    Click="LoadMore_Click"
+                    Content="Load more posts"
+                    HorizontalAlignment="Center"
+                    Visibility="Collapsed" />
+            </GridView.Footer>
+            <GridView.ItemTemplate>
+                <DataTemplate>
+                    <Border
+                        Height="{Binding CompactGridCardHeight}"
+                        Margin="4"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                        <Grid RowDefinitions="*,Auto" RowSpacing="2">
+                            <views:PostMediaCarousel ResponsiveFrame="True" />
+                            <views:PostActionsBar
+                                Grid.Row="1"
+                                Compact="True"
+                                CommentRequested="CompactPostCommentRequested"
+                                Post="{Binding}" />
+                        </Grid>
                     </Border>
                 </DataTemplate>
             </GridView.ItemTemplate>

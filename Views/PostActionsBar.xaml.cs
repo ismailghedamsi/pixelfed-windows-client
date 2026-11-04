@@ -18,11 +18,25 @@ public sealed partial class PostActionsBar : UserControl
         typeof(PostActionsBar),
         new PropertyMetadata(null, OnPostChanged));
 
+    public static readonly DependencyProperty CompactProperty = DependencyProperty.Register(
+        nameof(Compact),
+        typeof(bool),
+        typeof(PostActionsBar),
+        new PropertyMetadata(false, OnCompactChanged));
+
     public FeedPostViewModel? Post
     {
         get => (FeedPostViewModel?)GetValue(PostProperty);
         set => SetValue(PostProperty, value);
     }
+
+    public bool Compact
+    {
+        get => (bool)GetValue(CompactProperty);
+        set => SetValue(CompactProperty, value);
+    }
+
+    public event RoutedEventHandler? CommentRequested;
 
     public PostActionsBar()
     {
@@ -47,16 +61,26 @@ public sealed partial class PostActionsBar : UserControl
     private void UpdateActionVisibility()
     {
         var canInteract = Post?.CanInteractWithPost ?? true;
+        ActionButtonsPanel.Visibility = Compact ? Visibility.Collapsed : Visibility.Visible;
+        CompactActionsPanel.Visibility = Compact ? Visibility.Visible : Visibility.Collapsed;
         LikeButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
         ShareButton.Visibility = canInteract && ClientPreferences.AllowReblog ? Visibility.Visible : Visibility.Collapsed;
         ReplyButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
         BookmarkButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
+        CompactLikeButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
+        CompactShareButton.Visibility = canInteract && ClientPreferences.AllowReblog ? Visibility.Visible : Visibility.Collapsed;
+        CompactReplyButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void OnPostChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         var control = (PostActionsBar)sender;
         control.UpdateActionVisibility();
+    }
+
+    private static void OnCompactChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        ((PostActionsBar)sender).UpdateActionVisibility();
     }
 
     private async void Like_Click(object sender, RoutedEventArgs e)
@@ -144,6 +168,12 @@ public sealed partial class PostActionsBar : UserControl
             return;
         }
 
+        if (CommentRequested is not null)
+        {
+            CommentRequested(this, new RoutedEventArgs());
+            return;
+        }
+
         var editor = new TextBox
         {
             AcceptsReturn = true,
@@ -220,8 +250,11 @@ public sealed partial class PostActionsBar : UserControl
     private void SetActionButtonsEnabled(bool enabled)
     {
         LikeButton.IsEnabled = enabled;
+        CompactLikeButton.IsEnabled = enabled;
         ShareButton.IsEnabled = enabled;
+        CompactShareButton.IsEnabled = enabled;
         ReplyButton.IsEnabled = enabled && (Post?.CanReply ?? false);
+        CompactReplyButton.IsEnabled = enabled && (Post?.CanReply ?? false);
         BookmarkButton.IsEnabled = enabled;
     }
 

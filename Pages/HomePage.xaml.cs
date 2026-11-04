@@ -22,6 +22,7 @@ public sealed partial class HomePage : Page
     private readonly PixelfedTimelineService _timelineService = new();
     private readonly PixelfedSearchService _searchService = new();
     private readonly HolosSearchService _holosSearchService = new();
+    private readonly PixelfedPostActionsService _postActionsService = new();
     private readonly PixelfedImageDownloadService _imageDownloadService = new();
     private readonly ObservableCollection<FeedPostViewModel> _posts = new();
     private readonly ObservableCollection<FeedSearchSuggestion> _searchSuggestions = new();
@@ -37,8 +38,10 @@ public sealed partial class HomePage : Page
     private bool _isApplyingHashtagAccountSelection;
     private ScrollViewer? _feedScrollViewer;
     private bool _showGrid = true;
+    private bool _showCompactGrid;
     private int _gridColumns = 4;
     private ItemsWrapGrid? _feedItemsWrapGrid;
+    private ItemsWrapGrid? _compactFeedItemsWrapGrid;
     private bool _hasMore = true;
     private bool _isLoading;
     private double _gridCardHeight = 600;
@@ -63,11 +66,14 @@ public sealed partial class HomePage : Page
         _gridColumns = ReadOption(settings["feed.gridColumns"], 4, 2, 8);
         GridColumnCountText.Text = $"{_gridColumns} columns";
         FeedGridView.ItemsSource = _posts;
+        CompactFeedGridView.ItemsSource = _posts;
         FeedListView.ItemsSource = _posts;
         FeedSearchBox.ItemsSource = _searchSuggestions;
         FollowedHashtagsItemsControl.ItemsSource = _followedHashtagChips;
         FeedGridView.Loaded += FeedGridView_Loaded;
         FeedGridView.SizeChanged += FeedGridView_SizeChanged;
+        CompactFeedGridView.Loaded += CompactFeedGridView_Loaded;
+        CompactFeedGridView.SizeChanged += CompactFeedGridView_SizeChanged;
         FeedListView.Loaded += FeedListView_Loaded;
         Loaded += HomePage_Loaded;
         Unloaded += HomePage_Unloaded;
@@ -344,6 +350,135 @@ public sealed partial class HomePage : Page
             },
             CloseButtonText = "Close",
         };
+        await dialog.ShowAsync();
+    }
+
+    private async void CompactFeedGridView_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is FeedPostViewModel post)
+        {
+            await ShowPostDetailsAsync(post);
+        }
+    }
+
+    private async void CompactPostCommentRequested(object sender, RoutedEventArgs e)
+    {
+        if (sender is PostActionsBar { Post: { } post })
+        {
+            await ShowPostDetailsAsync(post, openCommentEditor: true);
+        }
+    }
+
+    private async Task ShowPostDetailsAsync(FeedPostViewModel post, bool openCommentEditor = false)
+    {
+        var content = new StackPanel { Spacing = 12, Width = 560 };
+        if (post.MediaItems.Count > 0)
+        {
+            content.Children.Add(new PostMediaCarousel
+            {
+                DataContext = post,
+                Width = 520,
+                MaxHeight = 480,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+        }
+
+        content.Children.Add(new TextBlock
+        {
+            Text = $"{post.DisplayName} · {post.Username} · {post.CreatedAtLabel}",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = post.Caption,
+            IsTextSelectionEnabled = true,
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        var actionBar = new PostActionsBar { Post = post };
+        var commentComposer = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
+        var commentEditor = new TextBox
+        {
+            AcceptsReturn = true,
+            MaxLength = 500,
+            MinHeight = 112,
+            PlaceholderText = "Write a comment…",
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var commentStatus = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var submitCommentButton = new Button
+        {
+            Content = "Post comment",
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        commentComposer.Children.Add(commentEditor);
+        commentComposer.Children.Add(commentStatus);
+        commentComposer.Children.Add(submitCommentButton);
+        actionBar.CommentRequested += (_, _) =>
+        {
+            commentComposer.Visibility = Visibility.Visible;
+            commentEditor.Focus(FocusState.Programmatic);
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = AppThemeService.SelectedTheme,
+            Title = "Post details",
+            Content = new ScrollViewer
+            {
+                Content = content,
+                MaxHeight = 680,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            },
+            CloseButtonText = "Close",
+        };
+        content.Children.Add(actionBar);
+        content.Children.Add(commentComposer);
+        submitCommentButton.Click += async (_, _) =>
+        {
+            var comment = commentEditor.Text.Trim();
+            if (comment.Length == 0)
+            {
+                commentStatus.Text = "Write a comment before posting it.";
+                commentEditor.Focus(FocusState.Programmatic);
+                return;
+            }
+
+            if (_instanceUri is null || string.IsNullOrEmpty(_accessToken))
+            {
+                commentStatus.Text = "Sign in to your Pixelfed account before commenting.";
+                return;
+            }
+
+            submitCommentButton.IsEnabled = false;
+            commentStatus.Text = "Posting comment…";
+            try
+            {
+                await _postActionsService.ReplyAsync(_instanceUri, _accessToken, post, comment);
+                post.MarkReplyPosted();
+                commentEditor.Text = string.Empty;
+                commentStatus.Text = "Comment posted.";
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+            {
+                commentStatus.Text = ex.Message;
+            }
+            finally
+            {
+                submitCommentButton.IsEnabled = true;
+            }
+        };
+
+        if (openCommentEditor)
+        {
+            commentComposer.Visibility = Visibility.Visible;
+        }
+
         await dialog.ShowAsync();
     }
 
@@ -730,14 +865,35 @@ public sealed partial class HomePage : Page
 
     private void ListMode_Click(object sender, RoutedEventArgs e) => SetFeedViewMode(showGrid: false);
 
+    private void CompactGridMode_Click(object sender, RoutedEventArgs e)
+    {
+        _showGrid = false;
+        _showCompactGrid = true;
+        FeedGridView.Visibility = Visibility.Collapsed;
+        CompactFeedGridView.Visibility = Visibility.Visible;
+        FeedListView.Visibility = Visibility.Collapsed;
+        GridColumnControls.Visibility = Visibility.Visible;
+        GridModeButton.IsChecked = false;
+        ListModeButton.IsChecked = false;
+        CompactGridModeButton.IsChecked = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateGridColumns();
+            UpdateActiveScrollViewer();
+        });
+    }
+
     private void SetFeedViewMode(bool showGrid)
     {
         _showGrid = showGrid;
+        _showCompactGrid = false;
         FeedGridView.Visibility = showGrid ? Visibility.Visible : Visibility.Collapsed;
+        CompactFeedGridView.Visibility = Visibility.Collapsed;
         FeedListView.Visibility = showGrid ? Visibility.Collapsed : Visibility.Visible;
         GridColumnControls.Visibility = showGrid ? Visibility.Visible : Visibility.Collapsed;
         GridModeButton.IsChecked = showGrid;
         ListModeButton.IsChecked = !showGrid;
+        CompactGridModeButton.IsChecked = false;
         DispatcherQueue.TryEnqueue(UpdateActiveScrollViewer);
     }
 
@@ -758,21 +914,46 @@ public sealed partial class HomePage : Page
     private void UpdateGridColumns()
     {
         _feedItemsWrapGrid ??= FindItemsWrapGrid(FeedGridView);
-        if (_feedItemsWrapGrid is null)
+        _compactFeedItemsWrapGrid ??= FindItemsWrapGrid(CompactFeedGridView);
+        if (_feedItemsWrapGrid is null && _compactFeedItemsWrapGrid is null)
         {
             return;
         }
 
-        _feedItemsWrapGrid.MaximumRowsOrColumns = _gridColumns;
+        if (_feedItemsWrapGrid is not null)
+        {
+            _feedItemsWrapGrid.MaximumRowsOrColumns = _gridColumns;
+        }
+        if (_compactFeedItemsWrapGrid is not null)
+        {
+            _compactFeedItemsWrapGrid.MaximumRowsOrColumns = _gridColumns;
+        }
         if (FeedGridView.ActualWidth > 0)
         {
             var itemWidth = Math.Max(150, (FeedGridView.ActualWidth / _gridColumns) - 8);
-            _feedItemsWrapGrid.ItemWidth = itemWidth;
+            if (_feedItemsWrapGrid is not null)
+            {
+                _feedItemsWrapGrid.ItemWidth = itemWidth;
+                _feedItemsWrapGrid.ItemHeight = Math.Ceiling(itemWidth + 390);
+            }
             _gridCardHeight = Math.Ceiling(itemWidth + 382);
-            _feedItemsWrapGrid.ItemHeight = _gridCardHeight + 8;
             foreach (var post in _posts)
             {
                 post.SetGridCardHeight(_gridCardHeight);
+            }
+        }
+        if (CompactFeedGridView.ActualWidth > 0)
+        {
+            var itemWidth = Math.Max(150, (CompactFeedGridView.ActualWidth / _gridColumns) - 8);
+            if (_compactFeedItemsWrapGrid is not null)
+            {
+                _compactFeedItemsWrapGrid.ItemWidth = itemWidth;
+                _compactFeedItemsWrapGrid.ItemHeight = Math.Ceiling(itemWidth + 52);
+            }
+
+            foreach (var post in _posts)
+            {
+                post.SetCompactGridCardHeight(Math.Ceiling(itemWidth + 44));
             }
         }
     }
@@ -822,6 +1003,14 @@ public sealed partial class HomePage : Page
         UpdateActiveScrollViewer();
     }
 
+    private void CompactFeedGridView_Loaded(object sender, RoutedEventArgs e)
+    {
+        UpdateGridColumns();
+        UpdateActiveScrollViewer();
+    }
+
+    private void CompactFeedGridView_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateGridColumns();
+
     private void FeedListView_Loaded(object sender, RoutedEventArgs e)
     {
         UpdateActiveScrollViewer();
@@ -829,7 +1018,9 @@ public sealed partial class HomePage : Page
 
     private void UpdateActiveScrollViewer()
     {
-        var activeFeed = _showGrid ? (DependencyObject)FeedGridView : FeedListView;
+        var activeFeed = _showGrid
+            ? (DependencyObject)FeedGridView
+            : _showCompactGrid ? CompactFeedGridView : FeedListView;
         var activeScrollViewer = FindScrollViewer(activeFeed);
         if (ReferenceEquals(activeScrollViewer, _feedScrollViewer))
         {
@@ -1024,18 +1215,21 @@ public sealed partial class HomePage : Page
     {
         LoadMoreButton.Visibility = visibility;
         LoadMoreListButton.Visibility = visibility;
+        LoadMoreCompactButton.Visibility = visibility;
     }
 
     private void SetLoadMoreEnabled(bool enabled)
     {
         LoadMoreButton.IsEnabled = enabled;
         LoadMoreListButton.IsEnabled = enabled;
+        LoadMoreCompactButton.IsEnabled = enabled;
     }
 
     private void SetLoadMoreContent(string content)
     {
         LoadMoreButton.Content = content;
         LoadMoreListButton.Content = content;
+        LoadMoreCompactButton.Content = content;
     }
 
     private void CheckFeedNeedsMore()
@@ -1195,6 +1389,7 @@ public sealed class FeedPostViewModel : INotifyPropertyChanged
     private int _replyCount;
     private int _currentImageIndex;
     private double _gridCardHeight = 600;
+    private double _compactGridCardHeight = 440;
     private readonly string? _fallbackDownloadUrl;
 
     public FeedPostViewModel(PixelfedPost post)
@@ -1286,6 +1481,7 @@ public sealed class FeedPostViewModel : INotifyPropertyChanged
     public bool CanReply { get; }
     public bool CanInteractWithPost { get; }
     public double GridCardHeight => _gridCardHeight;
+    public double CompactGridCardHeight => _compactGridCardHeight;
 
     public void SetGridCardHeight(double height)
     {
@@ -1298,16 +1494,27 @@ public sealed class FeedPostViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GridCardHeight)));
     }
 
+    public void SetCompactGridCardHeight(double height)
+    {
+        if (Math.Abs(_compactGridCardHeight - height) < 1)
+        {
+            return;
+        }
+
+        _compactGridCardHeight = height;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CompactGridCardHeight)));
+    }
+
     public bool IsFavourited
     {
         get => _isFavourited;
-        private set => SetValue(ref _isFavourited, value, nameof(IsFavourited), nameof(LikeButtonText));
+        private set => SetValue(ref _isFavourited, value, nameof(IsFavourited), nameof(LikeButtonText), nameof(CompactLikeButtonText));
     }
 
     public bool IsReblogged
     {
         get => _isReblogged;
-        private set => SetValue(ref _isReblogged, value, nameof(IsReblogged), nameof(ShareButtonText));
+        private set => SetValue(ref _isReblogged, value, nameof(IsReblogged), nameof(ShareButtonText), nameof(CompactShareButtonText));
     }
 
     public bool IsBookmarked
@@ -1319,25 +1526,28 @@ public sealed class FeedPostViewModel : INotifyPropertyChanged
     public int FavouriteCount
     {
         get => _favouriteCount;
-        private set => SetValue(ref _favouriteCount, value, nameof(FavouriteCount), nameof(LikeButtonText));
+        private set => SetValue(ref _favouriteCount, value, nameof(FavouriteCount), nameof(LikeButtonText), nameof(CompactLikeButtonText));
     }
 
     public int ShareCount
     {
         get => _shareCount;
-        private set => SetValue(ref _shareCount, value, nameof(ShareCount), nameof(ShareButtonText));
+        private set => SetValue(ref _shareCount, value, nameof(ShareCount), nameof(CompactShareButtonText));
     }
 
     public int ReplyCount
     {
         get => _replyCount;
-        private set => SetValue(ref _replyCount, value, nameof(ReplyCount), nameof(ReplyButtonText));
+        private set => SetValue(ref _replyCount, value, nameof(ReplyCount), nameof(ReplyButtonText), nameof(CompactReplyButtonText));
     }
 
     public string LikeButtonText => $"{(IsFavourited ? "♥ Liked" : "♡ Like")} · {FavouriteCount}";
     public string ShareButtonText => $"{(IsReblogged ? "Shared" : "Share")} · {ShareCount}";
     public string BookmarkButtonText => IsBookmarked ? "Saved" : "Save";
     public string ReplyButtonText => CanReply ? $"Comment · {ReplyCount}" : "Comments off";
+    public string CompactLikeButtonText => $"{(IsFavourited ? "♥" : "♡")} {FavouriteCount}";
+    public string CompactShareButtonText => $"{(IsReblogged ? "✓" : "↻")} {ShareCount}";
+    public string CompactReplyButtonText => $"▱ {ReplyCount}";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
