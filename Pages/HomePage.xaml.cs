@@ -837,6 +837,7 @@ public sealed partial class HomePage : Page
         CompactGridModeButton.IsChecked = true;
         DispatcherQueue.TryEnqueue(() =>
         {
+            CompactFeedGridView.UpdateLayout();
             UpdateGridColumns();
             UpdateActiveScrollViewer();
         });
@@ -868,7 +869,11 @@ public sealed partial class HomePage : Page
         UpdateGridColumns();
     }
 
-    private void FeedGridView_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateGridColumns();
+    private void FeedGridView_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateGridColumns();
+        UpdateActiveScrollViewer();
+    }
 
     private void UpdateGridColumns()
     {
@@ -962,7 +967,14 @@ public sealed partial class HomePage : Page
         UpdateActiveScrollViewer();
     }
 
-    private void CompactFeedGridView_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateGridColumns();
+    private void CompactFeedGridView_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateGridColumns();
+        if (_showCompactGrid)
+        {
+            UpdateActiveScrollViewer();
+        }
+    }
 
     private void FeedListView_Loaded(object sender, RoutedEventArgs e)
     {
@@ -995,13 +1007,13 @@ public sealed partial class HomePage : Page
 
     private void FeedScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        if (_feedScrollViewer is null)
+        if (sender is not ScrollViewer scrollViewer)
         {
             return;
         }
 
-        if (_feedScrollViewer.VerticalOffset + _feedScrollViewer.ViewportHeight
-            >= _feedScrollViewer.ScrollableHeight - FeedPrefetchDistance)
+        if (scrollViewer.VerticalOffset + scrollViewer.ViewportHeight
+            >= scrollViewer.ScrollableHeight - FeedPrefetchDistance)
         {
             _ = LoadNextPageAsync();
         }
