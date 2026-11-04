@@ -96,7 +96,10 @@ public sealed class PixelfedTimelineService
         var query = $"limit={PageSize}&_pe=1";
         if (feedKind == PixelfedFeedKind.Home)
         {
-            query += $"&include_reblogs={(ClientPreferences.AllowReblog ? "true" : "false")}&photos_reblogs_only=true";
+            // Keep photo filtering client-side (below). Pixelfed's server-side
+            // photos_reblogs_only filter can exhaust its Home timeline scan
+            // before the Link/max_id cursor reaches older pages.
+            query += $"&include_reblogs={(ClientPreferences.AllowReblog ? "true" : "false")}";
         }
 
         if (!string.IsNullOrWhiteSpace(maxId))
