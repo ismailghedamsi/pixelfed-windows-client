@@ -932,6 +932,22 @@ public sealed partial class HomePage : Page
         args.ItemContainer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         args.ItemContainer.VerticalContentAlignment = VerticalAlignment.Stretch;
         args.ItemContainer.VerticalAlignment = VerticalAlignment.Stretch;
+
+        // Use item realization as a reliable infinite-scroll signal. The GridView's
+        // internal ScrollViewer can be replaced during template/mode changes, so a
+        // scroll event alone can stop firing while the feed still has more pages.
+        if (!args.InRecycleQueue && args.ItemIndex >= Math.Max(0, _posts.Count - 12))
+        {
+            _ = LoadNextPageAsync();
+        }
+    }
+
+    private void FeedListView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (!args.InRecycleQueue && args.ItemIndex >= Math.Max(0, _posts.Count - 12))
+        {
+            _ = LoadNextPageAsync();
+        }
     }
 
     private void AddFeedPost(PixelfedPost post)
@@ -1123,6 +1139,7 @@ public sealed partial class HomePage : Page
             _pageCursor = page.NextMaxId;
             _hasMore = page.HasMore && !string.IsNullOrEmpty(_pageCursor) && _pageCursor != previousCursor;
 
+            var previousPostCount = _posts.Count;
             foreach (var post in page.Posts.Where(ShouldShowPost))
             {
                 AddFeedPost(post);
@@ -1132,7 +1149,17 @@ public sealed partial class HomePage : Page
 
             if (_hasMore)
             {
-                DispatcherQueue.TryEnqueue(CheckFeedNeedsMore);
+                if (_posts.Count == previousPostCount)
+                {
+                    // Keep walking the server timeline when a page contains only
+                    // filtered/duplicate posts; otherwise the visible feed can
+                    // falsely appear to end even though later pages exist.
+                    DispatcherQueue.TryEnqueue(() => _ = LoadNextPageAsync());
+                }
+                else
+                {
+                    DispatcherQueue.TryEnqueue(CheckFeedNeedsMore);
+                }
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)

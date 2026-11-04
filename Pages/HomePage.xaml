@@ -260,6 +260,7 @@
         <ListView
             x:Name="FeedListView"
             Grid.Row="5"
+            ContainerContentChanging="FeedListView_ContainerContentChanging"
             IsItemClickEnabled="False"
             SelectionMode="None"
             Visibility="Collapsed">
