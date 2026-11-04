@@ -47,8 +47,6 @@ public sealed partial class HomePage : Page
     private bool _isLoading;
     private double _gridCardHeight = 600;
     private bool _isListeningForPreferences;
-    private int _consecutiveEmptyPages;
-    private int EmptyPagePromptThreshold => string.IsNullOrWhiteSpace(_activeFollowedHashtag) ? 3 : 1;
     private CancellationTokenSource? _suggestionCancellation;
     private int _suggestionRequestVersion;
     private string? _pendingNotificationStatusId;
@@ -735,9 +733,7 @@ public sealed partial class HomePage : Page
         _posts.Clear();
         _pageCursor = null;
         _hasMore = true;
-        _consecutiveEmptyPages = 0;
         _lastShownPostTimeByAuthor.Clear();
-        SetLoadMoreVisibility(Visibility.Collapsed);
         FeedStatusText.Text = $"Searching indexed posts tagged #{_activeFollowedHashtag}…";
         await LoadNextPageAsync();
     }
@@ -801,9 +797,7 @@ public sealed partial class HomePage : Page
         _suggestionCancellation?.Cancel();
         _pageCursor = null;
         _hasMore = false;
-        _consecutiveEmptyPages = 0;
         _lastShownPostTimeByAuthor.Clear();
-        SetLoadMoreVisibility(Visibility.Collapsed);
         _posts.Clear();
         FeedStatusText.Text = $"Loading results for {label}…";
         try
@@ -956,12 +950,6 @@ public sealed partial class HomePage : Page
         return null;
     }
 
-    private async void LoadMore_Click(object sender, RoutedEventArgs e)
-    {
-        _consecutiveEmptyPages = 0;
-        await LoadNextPageAsync();
-    }
-
     private void FeedGridView_Loaded(object sender, RoutedEventArgs e)
     {
         UpdateGridColumns();
@@ -1007,9 +995,7 @@ public sealed partial class HomePage : Page
 
     private void FeedScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        if (_feedScrollViewer is null
-            || (_activeFollowedHashtag is not null
-                && _consecutiveEmptyPages >= EmptyPagePromptThreshold))
+        if (_feedScrollViewer is null)
         {
             return;
         }
@@ -1098,9 +1084,7 @@ public sealed partial class HomePage : Page
         _posts.Clear();
         _pageCursor = null;
         _hasMore = true;
-        _consecutiveEmptyPages = 0;
         _lastShownPostTimeByAuthor.Clear();
-        SetLoadMoreVisibility(Visibility.Collapsed);
         FeedStatusText.Text = $"Loading your {FeedLabel(_activeFeedKind)} feed…";
         await LoadNextPageAsync();
     }
@@ -1114,7 +1098,6 @@ public sealed partial class HomePage : Page
 
         _isLoading = true;
         var previousCursor = _pageCursor;
-        SetLoadMoreEnabled(false);
         FeedStatusText.Text = _posts.Count == 0
             ? $"Loading {FeedLabel(_activeFeedKind)} posts…"
             : $"Showing {_posts.Count} posts · loading more…";
@@ -1139,22 +1122,14 @@ public sealed partial class HomePage : Page
             _pageCursor = page.NextMaxId;
             _hasMore = page.HasMore && !string.IsNullOrEmpty(_pageCursor) && _pageCursor != previousCursor;
 
-            var visiblePostCount = 0;
             foreach (var post in page.Posts.Where(ShouldShowPost))
             {
                 AddFeedPost(post);
-                visiblePostCount++;
             }
 
-            _consecutiveEmptyPages = visiblePostCount == 0 ? _consecutiveEmptyPages + 1 : 0;
-            SetLoadMoreVisibility(_hasMore ? Visibility.Visible : Visibility.Collapsed);
             UpdateFeedStatus();
 
-            // If several pages contain no visible posts after preferences are
-            // applied, let the user choose when to continue scanning.
-            if (_hasMore
-                && _consecutiveEmptyPages < EmptyPagePromptThreshold
-                && string.IsNullOrWhiteSpace(_activeFollowedHashtag))
+            if (_hasMore)
             {
                 DispatcherQueue.TryEnqueue(CheckFeedNeedsMore);
             }
@@ -1162,40 +1137,16 @@ public sealed partial class HomePage : Page
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {
             FeedStatusText.Text = ex.Message;
-            SetLoadMoreContent("Retry loading posts");
-            SetLoadMoreVisibility(Visibility.Visible);
         }
         finally
         {
             _isLoading = false;
-            SetLoadMoreEnabled(true);
         }
-    }
-
-    private void SetLoadMoreVisibility(Visibility visibility)
-    {
-        LoadMoreButton.Visibility = visibility;
-        LoadMoreListButton.Visibility = visibility;
-        LoadMoreCompactButton.Visibility = visibility;
-    }
-
-    private void SetLoadMoreEnabled(bool enabled)
-    {
-        LoadMoreButton.IsEnabled = enabled;
-        LoadMoreListButton.IsEnabled = enabled;
-        LoadMoreCompactButton.IsEnabled = enabled;
-    }
-
-    private void SetLoadMoreContent(string content)
-    {
-        LoadMoreButton.Content = content;
-        LoadMoreListButton.Content = content;
-        LoadMoreCompactButton.Content = content;
     }
 
     private void CheckFeedNeedsMore()
     {
-        if (!_hasMore || _feedScrollViewer is null || _consecutiveEmptyPages >= EmptyPagePromptThreshold)
+        if (!_hasMore || _feedScrollViewer is null)
         {
             return;
         }
@@ -1219,12 +1170,6 @@ public sealed partial class HomePage : Page
             FeedStatusText.Text = _posts.Count == 0
                 ? $"No posts were found in your {feedLabel} feed."
                 : $"Showing all {_posts.Count} {countLabel} in your {feedLabel} feed.";
-        }
-        else if (_consecutiveEmptyPages >= EmptyPagePromptThreshold)
-        {
-            FeedStatusText.Text = _posts.Count == 0
-                ? $"No visible posts in the latest {feedLabel} batches. Load more to keep looking."
-                : $"Showing {_posts.Count} {countLabel}. Load more to continue past posts hidden by your filters.";
         }
         else
         {

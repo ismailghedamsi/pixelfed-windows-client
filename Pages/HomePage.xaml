@@ -178,14 +178,6 @@
                         <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
                 </ItemsPanelTemplate>
             </GridView.ItemsPanel>
-            <GridView.Footer>
-                <Button
-                    x:Name="LoadMoreButton"
-                    Click="LoadMore_Click"
-                    Content="Load more posts"
-                    HorizontalAlignment="Center"
-                    Visibility="Collapsed" />
-            </GridView.Footer>
             <GridView.ItemTemplate>
                 <DataTemplate>
                     <Border
@@ -259,14 +251,6 @@
                     <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
                 </ItemsPanelTemplate>
             </GridView.ItemsPanel>
-            <GridView.Footer>
-                <Button
-                    x:Name="LoadMoreCompactButton"
-                    Click="LoadMore_Click"
-                    Content="Load more posts"
-                    HorizontalAlignment="Center"
-                    Visibility="Collapsed" />
-            </GridView.Footer>
             <GridView.ItemTemplate>
                 <DataTemplate>
                     <Border
@@ -294,14 +278,6 @@
             IsItemClickEnabled="False"
             SelectionMode="None"
             Visibility="Collapsed">
-            <ListView.Footer>
-                <Button
-                    x:Name="LoadMoreListButton"
-                    Click="LoadMore_Click"
-                    Content="Load more posts"
-                    HorizontalAlignment="Center"
-                    Visibility="Collapsed" />
-            </ListView.Footer>
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Border
