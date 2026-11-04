@@ -326,16 +326,16 @@ public sealed partial class HomePage : Page
     {
         if (sender is PostActionsBar { Post: { } post })
         {
-            await ShowPostDetailsAsync(post, openCommentEditor: true);
+            await ShowCommentOnlyModalAsync(post);
         }
     }
 
-    private async Task ShowPostDetailsAsync(FeedPostViewModel post, bool openCommentEditor = false)
+    private async Task ShowPostDetailsAsync(FeedPostViewModel post)
     {
-        var content = new StackPanel { Spacing = 12, Width = 560 };
+        var details = new StackPanel { Spacing = 12, Width = 560 };
         if (post.MediaItems.Count > 0)
         {
-            content.Children.Add(new PostMediaCarousel
+            details.Children.Add(new PostMediaCarousel
             {
                 DataContext = post,
                 Width = 520,
@@ -344,13 +344,13 @@ public sealed partial class HomePage : Page
             });
         }
 
-        content.Children.Add(new TextBlock
+        details.Children.Add(new TextBlock
         {
             Text = $"{post.DisplayName} · {post.Username} · {post.CreatedAtLabel}",
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
         });
-        content.Children.Add(new TextBlock
+        details.Children.Add(new TextBlock
         {
             Text = post.Caption,
             IsTextSelectionEnabled = true,
@@ -367,24 +367,17 @@ public sealed partial class HomePage : Page
             PlaceholderText = "Write a comment…",
             TextWrapping = TextWrapping.Wrap,
         };
-        var commentStatus = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-        };
         var submitCommentButton = new Button
         {
-            Content = "Post comment",
+            Content = "Submit comment",
             HorizontalAlignment = HorizontalAlignment.Right,
         };
         commentComposer.Children.Add(commentEditor);
-        commentComposer.Children.Add(commentStatus);
         commentComposer.Children.Add(submitCommentButton);
-        actionBar.CommentRequested += (_, _) =>
-        {
-            commentComposer.Visibility = Visibility.Visible;
-            commentEditor.Focus(FocusState.Programmatic);
-        };
-
+        var modalContent = new StackPanel { Spacing = 12 };
+        modalContent.Children.Add(details);
+        modalContent.Children.Add(actionBar);
+        modalContent.Children.Add(commentComposer);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -392,55 +385,90 @@ public sealed partial class HomePage : Page
             Title = "Post details",
             Content = new ScrollViewer
             {
-                Content = content,
+                Content = modalContent,
                 MaxHeight = 680,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             },
             CloseButtonText = "Close",
         };
-        content.Children.Add(actionBar);
-        content.Children.Add(commentComposer);
+
+        actionBar.CommentRequested += (_, _) =>
+        {
+            details.Visibility = Visibility.Collapsed;
+            commentComposer.Visibility = Visibility.Visible;
+            dialog.Title = string.Empty;
+            dialog.CloseButtonText = string.Empty;
+            commentEditor.Focus(FocusState.Programmatic);
+        };
+
         submitCommentButton.Click += async (_, _) =>
         {
             var comment = commentEditor.Text.Trim();
             if (comment.Length == 0)
             {
-                commentStatus.Text = "Write a comment before posting it.";
                 commentEditor.Focus(FocusState.Programmatic);
                 return;
             }
 
-            if (_instanceUri is null || string.IsNullOrEmpty(_accessToken))
-            {
-                commentStatus.Text = "Sign in to your Pixelfed account before commenting.";
-                return;
-            }
-
             submitCommentButton.IsEnabled = false;
-            commentStatus.Text = "Posting comment…";
-            try
+            if (await SubmitCommentAsync(post, comment))
             {
-                await _postActionsService.ReplyAsync(_instanceUri, _accessToken, post, comment);
-                post.MarkReplyPosted();
-                commentEditor.Text = string.Empty;
-                commentStatus.Text = "Comment posted.";
+                dialog.Hide();
             }
-            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
-            {
-                commentStatus.Text = ex.Message;
-            }
-            finally
-            {
-                submitCommentButton.IsEnabled = true;
-            }
+            submitCommentButton.IsEnabled = true;
         };
 
-        if (openCommentEditor)
+        await dialog.ShowAsync();
+    }
+
+    private async Task ShowCommentOnlyModalAsync(FeedPostViewModel post)
+    {
+        var editor = new TextBox
         {
-            commentComposer.Visibility = Visibility.Visible;
+            AcceptsReturn = true,
+            MaxLength = 500,
+            MinHeight = 112,
+            PlaceholderText = "Write a comment…",
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = AppThemeService.SelectedTheme,
+            Content = editor,
+            PrimaryButtonText = "Submit comment",
+            DefaultButton = ContentDialogButton.Primary,
+            IsPrimaryButtonEnabled = false,
+        };
+        editor.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(editor.Text);
+        editor.Loaded += (_, _) => editor.Focus(FocusState.Programmatic);
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            await SubmitCommentAsync(post, editor.Text.Trim());
+        }
+    }
+
+    private async Task<bool> SubmitCommentAsync(FeedPostViewModel post, string comment)
+    {
+        if (_instanceUri is null || string.IsNullOrEmpty(_accessToken))
+        {
+            FeedStatusText.Text = "Sign in to your Pixelfed account before commenting.";
+            return false;
         }
 
-        await dialog.ShowAsync();
+        try
+        {
+            await _postActionsService.ReplyAsync(_instanceUri, _accessToken, post, comment);
+            post.MarkReplyPosted();
+            FeedStatusText.Text = "Comment posted.";
+            return true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+        {
+            FeedStatusText.Text = ex.Message;
+            return false;
+        }
     }
 
     private void PostImage_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
