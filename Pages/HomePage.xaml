@@ -230,7 +230,11 @@
                                     Tag="{Binding}"
                                     Visibility="{Binding CaptionSeeMoreVisibility}" />
                             </Grid>
-                            <views:PostActionsBar Height="112" Margin="8,0,8,0" Post="{Binding}" />
+                            <views:PostActionsBar
+                                Height="112"
+                                Margin="8,0,8,0"
+                                CommentRequested="PostCommentRequested"
+                                Post="{Binding}" />
                             <TextBlock
                                 Height="24"
                                 Margin="12,0,12,12"
@@ -277,7 +281,7 @@
                             <views:PostActionsBar
                                 Grid.Row="1"
                                 Compact="True"
-                                CommentRequested="CompactPostCommentRequested"
+                                CommentRequested="PostCommentRequested"
                                 Post="{Binding}" />
                         </Grid>
                     </Border>
@@ -325,7 +329,7 @@
                                 IsTextSelectionEnabled="True"
                                 Text="{Binding Caption}"
                                 TextWrapping="Wrap" />
-                            <views:PostActionsBar Post="{Binding}" />
+                            <views:PostActionsBar CommentRequested="PostCommentRequested" Post="{Binding}" />
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -407,6 +411,7 @@
                     <views:PostActionsBar
                         x:Name="SwipeViewerActions"
                         Grid.Column="1"
+                        CommentRequested="PostCommentRequested"
                         VerticalAlignment="Center" />
                 </Grid>
             </Border>

@@ -314,43 +314,7 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        var postContent = new StackPanel { Spacing = 12 };
-        if (post.MediaItems.Count > 0)
-        {
-            postContent.Children.Add(new PostMediaCarousel
-            {
-                DataContext = post,
-                MaxHeight = 420,
-            });
-        }
-
-        postContent.Children.Add(new TextBlock
-        {
-            Text = $"{post.DisplayName} · {post.Username} · {post.CreatedAtLabel}",
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        postContent.Children.Add(new TextBlock
-        {
-            Text = post.Caption,
-            IsTextSelectionEnabled = true,
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            RequestedTheme = AppThemeService.SelectedTheme,
-            Title = "Post",
-            Content = new ScrollViewer
-            {
-                Content = postContent,
-                MaxHeight = 620,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            },
-            CloseButtonText = "Close",
-        };
-        await dialog.ShowAsync();
+        await ShowPostDetailsAsync(post);
     }
 
     private async void CompactFeedGridView_ItemClick(object sender, ItemClickEventArgs e)
@@ -361,7 +325,7 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private async void CompactPostCommentRequested(object sender, RoutedEventArgs e)
+    private async void PostCommentRequested(object sender, RoutedEventArgs e)
     {
         if (sender is PostActionsBar { Post: { } post })
         {
