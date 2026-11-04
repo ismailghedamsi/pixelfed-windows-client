@@ -19,6 +19,7 @@ namespace PixelfedClient.Pages;
 
 public sealed partial class HomePage : Page
 {
+    private const double FeedPrefetchDistance = 1200;
     private readonly PixelfedTimelineService _timelineService = new();
     private readonly PixelfedSearchService _searchService = new();
     private readonly HolosSearchService _holosSearchService = new();
@@ -1014,7 +1015,7 @@ public sealed partial class HomePage : Page
         }
 
         if (_feedScrollViewer.VerticalOffset + _feedScrollViewer.ViewportHeight
-            >= _feedScrollViewer.ScrollableHeight - 500)
+            >= _feedScrollViewer.ScrollableHeight - FeedPrefetchDistance)
         {
             _ = LoadNextPageAsync();
         }
@@ -1146,11 +1147,7 @@ public sealed partial class HomePage : Page
             }
 
             _consecutiveEmptyPages = visiblePostCount == 0 ? _consecutiveEmptyPages + 1 : 0;
-            SetLoadMoreVisibility(_hasMore
-                && (!string.IsNullOrWhiteSpace(_activeFollowedHashtag)
-                    || _consecutiveEmptyPages >= EmptyPagePromptThreshold)
-                ? Visibility.Visible
-                : Visibility.Collapsed);
+            SetLoadMoreVisibility(_hasMore ? Visibility.Visible : Visibility.Collapsed);
             UpdateFeedStatus();
 
             // If several pages contain no visible posts after preferences are
@@ -1205,7 +1202,7 @@ public sealed partial class HomePage : Page
 
         if (_posts.Count == 0
             || _feedScrollViewer.VerticalOffset + _feedScrollViewer.ViewportHeight
-                >= _feedScrollViewer.ScrollableHeight - 500)
+                >= _feedScrollViewer.ScrollableHeight - FeedPrefetchDistance)
         {
             _ = LoadNextPageAsync();
         }
