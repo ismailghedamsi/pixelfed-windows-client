@@ -79,7 +79,6 @@
             Padding="4,3"
             Click="Reply_Click"
             Content="{Binding Post.CompactReplyButtonText, ElementName=Root}"
-            IsEnabled="{Binding Post.CanReply, ElementName=Root}"
             FontSize="12"
             ToolTipService.ToolTip="Comment on this post" />
     </Grid>

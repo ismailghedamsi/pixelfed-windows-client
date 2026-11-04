@@ -67,9 +67,15 @@ public sealed partial class PostActionsBar : UserControl
         ShareButton.Visibility = canInteract && ClientPreferences.AllowReblog ? Visibility.Visible : Visibility.Collapsed;
         ReplyButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
         BookmarkButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
-        CompactLikeButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
-        CompactShareButton.Visibility = canInteract && ClientPreferences.AllowReblog ? Visibility.Visible : Visibility.Collapsed;
-        CompactReplyButton.Visibility = canInteract ? Visibility.Visible : Visibility.Collapsed;
+        CompactLikeButton.Visibility = Visibility.Visible;
+        CompactShareButton.Visibility = Visibility.Visible;
+        CompactReplyButton.Visibility = Visibility.Visible;
+        CompactLikeButton.IsEnabled = canInteract;
+        CompactShareButton.IsEnabled = canInteract && ClientPreferences.AllowReblog;
+        CompactReplyButton.IsEnabled = canInteract && (Post?.CanReply ?? false);
+        ToolTipService.SetToolTip(
+            CompactShareButton,
+            ClientPreferences.AllowReblog ? "Reblog this post" : "Reblogging is disabled in Settings");
     }
 
     private static void OnPostChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
@@ -249,12 +255,13 @@ public sealed partial class PostActionsBar : UserControl
 
     private void SetActionButtonsEnabled(bool enabled)
     {
-        LikeButton.IsEnabled = enabled;
-        CompactLikeButton.IsEnabled = enabled;
-        ShareButton.IsEnabled = enabled;
-        CompactShareButton.IsEnabled = enabled;
-        ReplyButton.IsEnabled = enabled && (Post?.CanReply ?? false);
-        CompactReplyButton.IsEnabled = enabled && (Post?.CanReply ?? false);
+        var canInteract = Post?.CanInteractWithPost ?? true;
+        LikeButton.IsEnabled = enabled && canInteract;
+        CompactLikeButton.IsEnabled = enabled && canInteract;
+        ShareButton.IsEnabled = enabled && canInteract && ClientPreferences.AllowReblog;
+        CompactShareButton.IsEnabled = enabled && canInteract && ClientPreferences.AllowReblog;
+        ReplyButton.IsEnabled = enabled && canInteract && (Post?.CanReply ?? false);
+        CompactReplyButton.IsEnabled = enabled && canInteract && (Post?.CanReply ?? false);
         BookmarkButton.IsEnabled = enabled;
     }
 
