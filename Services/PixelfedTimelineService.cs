@@ -160,7 +160,7 @@ public sealed class PixelfedTimelineService
             return new PixelfedTimelinePage(
                 posts,
                 nextMaxId,
-                linkedNextMaxId is not null || statuses.Length >= PageSize);
+                linkedNextMaxId is not null || statuses.Length > 0);
         }
     }
 
