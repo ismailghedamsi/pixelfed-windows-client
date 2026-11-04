@@ -1197,7 +1197,9 @@ public sealed partial class HomePage : Page
         {
             FeedStatusText.Text = _posts.Count == 0
                 ? $"No posts were found in your {feedLabel} feed."
-                : $"Showing all {_posts.Count} {countLabel} in your {feedLabel} feed.";
+                : ClientPreferences.LimitFrequentPostersToOnePostPer24Hours
+                    ? $"Showing {_posts.Count} {countLabel} in your {feedLabel} feed after applying the one-post-per-account-per-24-hours filter."
+                    : $"Showing all {_posts.Count} {countLabel} in your {feedLabel} feed.";
         }
         else
         {
