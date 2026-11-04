@@ -1198,7 +1198,7 @@ public sealed partial class HomePage : Page
             FeedStatusText.Text = _posts.Count == 0
                 ? $"No posts were found in your {feedLabel} feed."
                 : ClientPreferences.LimitFrequentPostersToOnePostPer24Hours
-                    ? $"Showing {_posts.Count} {countLabel} in your {feedLabel} feed after applying the one-post-per-account-per-24-hours filter."
+                    ? $"Showing {_posts.Count} {countLabel} in your {feedLabel} feed, with repeat posts limited only for the most recent 24 hours."
                     : $"Showing all {_posts.Count} {countLabel} in your {feedLabel} feed.";
         }
         else
@@ -1232,25 +1232,23 @@ public sealed partial class HomePage : Page
             return true;
         }
 
+        // The preference only reduces the newest 24-hour window. Once a post
+        // is older than that window, show it regardless of how often its author
+        // posted; otherwise the filter hides their entire older history too.
+        if (post.CreatedAtUtc is { } createdAt
+            && createdAt < DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(24)))
+        {
+            return true;
+        }
+
         var authorKey = string.IsNullOrWhiteSpace(post.AccountKey) ? post.Username : post.AccountKey;
-        if (!_lastShownPostTimeByAuthor.TryGetValue(authorKey, out var previousTime))
+        if (!_lastShownPostTimeByAuthor.ContainsKey(authorKey))
         {
             _lastShownPostTimeByAuthor[authorKey] = post.CreatedAtUtc;
             return true;
         }
 
-        if (previousTime is null || post.CreatedAtUtc is null)
-        {
-            return false;
-        }
-
-        if ((previousTime.Value - post.CreatedAtUtc.Value).Duration() < TimeSpan.FromHours(24))
-        {
-            return false;
-        }
-
-        _lastShownPostTimeByAuthor[authorKey] = post.CreatedAtUtc;
-        return true;
+        return false;
     }
 }
 
