@@ -172,14 +172,10 @@
             Grid.Row="5"
             ContainerContentChanging="FeedGridView_ContainerContentChanging"
             IsItemClickEnabled="False"
+            ItemClick="FeedGridView_ItemClick"
             SelectionMode="None">
-            <GridView.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </GridView.ItemsPanel>
-            <GridView.ItemTemplate>
-                <DataTemplate>
+            <GridView.Resources>
+                <DataTemplate x:Key="RegularGridPostTemplate">
                     <Border
                         Height="{Binding GridCardHeight}"
                         Margin="4"
@@ -236,23 +232,7 @@
                         </StackPanel>
                     </Border>
                 </DataTemplate>
-            </GridView.ItemTemplate>
-        </GridView>
-        <GridView
-            x:Name="CompactFeedGridView"
-            Grid.Row="5"
-            ContainerContentChanging="FeedGridView_ContainerContentChanging"
-            IsItemClickEnabled="True"
-            ItemClick="CompactFeedGridView_ItemClick"
-            SelectionMode="None"
-            Visibility="Collapsed">
-            <GridView.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </GridView.ItemsPanel>
-            <GridView.ItemTemplate>
-                <DataTemplate>
+                <DataTemplate x:Key="CompactGridPostTemplate">
                     <Border
                         Height="{Binding CompactGridCardHeight}"
                         Margin="4"
@@ -270,7 +250,12 @@
                         </Grid>
                     </Border>
                 </DataTemplate>
-            </GridView.ItemTemplate>
+            </GridView.Resources>
+            <GridView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ItemsWrapGrid MaximumRowsOrColumns="4" Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </GridView.ItemsPanel>
         </GridView>
         <ListView
             x:Name="FeedListView"

@@ -42,10 +42,10 @@ public sealed partial class HomePage : Page
     private bool _showCompactGrid;
     private int _gridColumns = 4;
     private ItemsWrapGrid? _feedItemsWrapGrid;
-    private ItemsWrapGrid? _compactFeedItemsWrapGrid;
     private bool _hasMore = true;
     private bool _isLoading;
     private double _gridCardHeight = 600;
+    private double _compactGridCardHeight = 440;
     private bool _isListeningForPreferences;
     private CancellationTokenSource? _suggestionCancellation;
     private int _suggestionRequestVersion;
@@ -56,6 +56,7 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         InitializeComponent();
+        FeedGridView.ItemTemplate = (DataTemplate)FeedGridView.Resources["RegularGridPostTemplate"];
         var refreshAccelerator = new KeyboardAccelerator { Key = VirtualKey.F5 };
         refreshAccelerator.Invoked += RefreshKeyboardAccelerator_Invoked;
         KeyboardAccelerators.Add(refreshAccelerator);
@@ -65,14 +66,11 @@ public sealed partial class HomePage : Page
         _gridColumns = ReadOption(settings["feed.gridColumns"], 4, 2, 8);
         GridColumnCountText.Text = $"{_gridColumns} columns";
         FeedGridView.ItemsSource = _posts;
-        CompactFeedGridView.ItemsSource = _posts;
         FeedListView.ItemsSource = _posts;
         FeedSearchBox.ItemsSource = _searchSuggestions;
         FollowedHashtagsItemsControl.ItemsSource = _followedHashtagChips;
         FeedGridView.Loaded += FeedGridView_Loaded;
         FeedGridView.SizeChanged += FeedGridView_SizeChanged;
-        CompactFeedGridView.Loaded += CompactFeedGridView_Loaded;
-        CompactFeedGridView.SizeChanged += CompactFeedGridView_SizeChanged;
         FeedListView.Loaded += FeedListView_Loaded;
         Loaded += HomePage_Loaded;
         Unloaded += HomePage_Unloaded;
@@ -316,7 +314,7 @@ public sealed partial class HomePage : Page
         await ShowPostDetailsAsync(post);
     }
 
-    private async void CompactFeedGridView_ItemClick(object sender, ItemClickEventArgs e)
+    private async void FeedGridView_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is FeedPostViewModel post)
         {
@@ -826,18 +824,19 @@ public sealed partial class HomePage : Page
 
     private void CompactGridMode_Click(object sender, RoutedEventArgs e)
     {
-        _showGrid = false;
+        _showGrid = true;
         _showCompactGrid = true;
-        FeedGridView.Visibility = Visibility.Collapsed;
-        CompactFeedGridView.Visibility = Visibility.Visible;
+        FeedGridView.Visibility = Visibility.Visible;
         FeedListView.Visibility = Visibility.Collapsed;
+        FeedGridView.IsItemClickEnabled = true;
+        FeedGridView.ItemTemplate = (DataTemplate)FeedGridView.Resources["CompactGridPostTemplate"];
         GridColumnControls.Visibility = Visibility.Visible;
         GridModeButton.IsChecked = false;
         ListModeButton.IsChecked = false;
         CompactGridModeButton.IsChecked = true;
         DispatcherQueue.TryEnqueue(() =>
         {
-            CompactFeedGridView.UpdateLayout();
+            FeedGridView.UpdateLayout();
             UpdateGridColumns();
             UpdateActiveScrollViewer();
         });
@@ -848,8 +847,9 @@ public sealed partial class HomePage : Page
         _showGrid = showGrid;
         _showCompactGrid = false;
         FeedGridView.Visibility = showGrid ? Visibility.Visible : Visibility.Collapsed;
-        CompactFeedGridView.Visibility = Visibility.Collapsed;
         FeedListView.Visibility = showGrid ? Visibility.Collapsed : Visibility.Visible;
+        FeedGridView.IsItemClickEnabled = false;
+        FeedGridView.ItemTemplate = (DataTemplate)FeedGridView.Resources["RegularGridPostTemplate"];
         GridColumnControls.Visibility = showGrid ? Visibility.Visible : Visibility.Collapsed;
         GridModeButton.IsChecked = showGrid;
         ListModeButton.IsChecked = !showGrid;
@@ -878,46 +878,23 @@ public sealed partial class HomePage : Page
     private void UpdateGridColumns()
     {
         _feedItemsWrapGrid ??= FindItemsWrapGrid(FeedGridView);
-        _compactFeedItemsWrapGrid ??= FindItemsWrapGrid(CompactFeedGridView);
-        if (_feedItemsWrapGrid is null && _compactFeedItemsWrapGrid is null)
+        if (_feedItemsWrapGrid is null)
         {
             return;
         }
 
-        if (_feedItemsWrapGrid is not null)
-        {
-            _feedItemsWrapGrid.MaximumRowsOrColumns = _gridColumns;
-        }
-        if (_compactFeedItemsWrapGrid is not null)
-        {
-            _compactFeedItemsWrapGrid.MaximumRowsOrColumns = _gridColumns;
-        }
+        _feedItemsWrapGrid.MaximumRowsOrColumns = _gridColumns;
         if (FeedGridView.ActualWidth > 0)
         {
             var itemWidth = Math.Max(150, (FeedGridView.ActualWidth / _gridColumns) - 8);
-            if (_feedItemsWrapGrid is not null)
-            {
-                _feedItemsWrapGrid.ItemWidth = itemWidth;
-                _feedItemsWrapGrid.ItemHeight = Math.Ceiling(itemWidth + 390);
-            }
+            _feedItemsWrapGrid.ItemWidth = itemWidth;
             _gridCardHeight = Math.Ceiling(itemWidth + 382);
+            _compactGridCardHeight = Math.Ceiling(itemWidth + 44);
+            _feedItemsWrapGrid.ItemHeight = Math.Ceiling(itemWidth + (_showCompactGrid ? 52 : 390));
             foreach (var post in _posts)
             {
                 post.SetGridCardHeight(_gridCardHeight);
-            }
-        }
-        if (CompactFeedGridView.ActualWidth > 0)
-        {
-            var itemWidth = Math.Max(150, (CompactFeedGridView.ActualWidth / _gridColumns) - 8);
-            if (_compactFeedItemsWrapGrid is not null)
-            {
-                _compactFeedItemsWrapGrid.ItemWidth = itemWidth;
-                _compactFeedItemsWrapGrid.ItemHeight = Math.Ceiling(itemWidth + 52);
-            }
-
-            foreach (var post in _posts)
-            {
-                post.SetCompactGridCardHeight(Math.Ceiling(itemWidth + 44));
+                post.SetCompactGridCardHeight(_compactGridCardHeight);
             }
         }
     }
@@ -933,6 +910,7 @@ public sealed partial class HomePage : Page
     {
         var viewModel = new FeedPostViewModel(post);
         viewModel.SetGridCardHeight(_gridCardHeight);
+        viewModel.SetCompactGridCardHeight(_compactGridCardHeight);
         _posts.Add(viewModel);
     }
 
@@ -961,21 +939,6 @@ public sealed partial class HomePage : Page
         UpdateActiveScrollViewer();
     }
 
-    private void CompactFeedGridView_Loaded(object sender, RoutedEventArgs e)
-    {
-        UpdateGridColumns();
-        UpdateActiveScrollViewer();
-    }
-
-    private void CompactFeedGridView_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        UpdateGridColumns();
-        if (_showCompactGrid)
-        {
-            UpdateActiveScrollViewer();
-        }
-    }
-
     private void FeedListView_Loaded(object sender, RoutedEventArgs e)
     {
         UpdateActiveScrollViewer();
@@ -983,9 +946,7 @@ public sealed partial class HomePage : Page
 
     private void UpdateActiveScrollViewer()
     {
-        var activeFeed = _showGrid
-            ? (DependencyObject)FeedGridView
-            : _showCompactGrid ? CompactFeedGridView : FeedListView;
+        var activeFeed = _showGrid ? (DependencyObject)FeedGridView : FeedListView;
         var activeScrollViewer = FindScrollViewer(activeFeed);
         if (ReferenceEquals(activeScrollViewer, _feedScrollViewer))
         {
